@@ -1,0 +1,25 @@
+{
+    "name": "cnmoi-backend",
+    "version": "1.0.0",
+    "main": "server.js",
+    "scripts": {
+        "start": "node server.js",
+        "seed": "node seed.js",
+        "seed:b2c": "node seed-b2c.js"
+    },
+    "dependencies": {
+        "axios": "^1.16.0",
+        "bcryptjs": "^2.4.3",
+        "dotenv": "^17.3.1",
+        "express": "^4.21.2",
+        "jsonwebtoken": "^9.0.2",
+        "multer": "^2.0.2",
+        "node-cron": "^4.2.1",
+        "nodemailer": "^8.0.5",
+        "pg": "^8.20.0",
+        "pg-hstore": "^2.3.4",
+        "sequelize": "^6.37.8",
+        "socket.io": "^4.8.3",
+        "tesseract.js": "^7.0.0"
+    }
+}

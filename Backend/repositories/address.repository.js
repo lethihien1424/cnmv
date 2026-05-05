@@ -1,0 +1,25 @@
+const { Address } = require("../models");
+
+const createAddress = async (data) => {
+  return await Address.create(data);
+};
+
+const getByUser = async (userId) => {
+  return await Address.findAll({
+    where: { user_id: userId },
+    order: [["is_default", "DESC"]],
+  });
+};
+
+const resetDefault = async (userId) => {
+  return await Address.update(
+    { is_default: false },
+    { where: { user_id: userId } }
+  );
+};
+
+module.exports = {
+  createAddress,
+  getByUser,
+  resetDefault,
+};
