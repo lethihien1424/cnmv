@@ -31,8 +31,10 @@ export async function apiRequest<T>(
     headers.set('Content-Type', 'application/json');
   }
 
-  if (token) {
-    headers.set('Authorization', `Bearer ${token}`);
+  const currentToken = token || localStorage.getItem('token');
+
+  if (currentToken) {
+    headers.set('Authorization', `Bearer ${currentToken}`);
   }
 
   const response = await fetch(`${API_BASE_URL}${path}`, {

@@ -13,6 +13,8 @@ const reviewRoutes = require("./routes/review.route");
 const userRoutes = require("./routes/user.route"); // 🔥 THÊM
 const addressRoutes = require("./routes/address.route");
 const ghnRoutes = require("./routes/ghn.route");
+// Thêm dòng này ở phần require
+const shippingRoutes = require("./routes/shipping.route");
 
 
 const app = express();
@@ -64,6 +66,8 @@ app.use("/api/reviews", reviewRoutes);
 app.use("/api/users", userRoutes); // 🔥 THÊM
 app.use("/api/addresses", addressRoutes);
 app.use("/api/ghn", ghnRoutes);
+// ==================== THÊM DÒNG NÀY VÀO CUỐI PHẦN ROUTES ====================
+app.use("/api/shipping", shippingRoutes);
 
 app.get("/health", (req, res) => {
   res.status(200).json({ message: "Backend is running" });

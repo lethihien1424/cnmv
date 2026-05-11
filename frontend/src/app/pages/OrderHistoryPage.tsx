@@ -68,6 +68,7 @@ const PAYMENT_CONFIG: Record<string, { label: string; cls: string }> = {
 
 // ─── Order Card ───────────────────────────────────────────────────────────────
 function OrderCard({ order }: { order: Order }) {
+  const navigate = useNavigate();
   const statusCfg  = STATUS_CONFIG[order.order_status]  ?? { label: order.order_status, textCls: 'text-gray-600', bgCls: 'bg-gray-50', dot: 'bg-gray-400' };
   const paymentCfg = PAYMENT_CONFIG[order.payment_status] ?? { label: order.payment_status, cls: 'bg-gray-100 text-gray-600' };
 
@@ -94,21 +95,35 @@ function OrderCard({ order }: { order: Order }) {
 
       {/* ── Items list ── */}
       <div className="divide-y divide-gray-50">
-        {order.items.map(item => (
-          <div key={item.id} className="flex items-center gap-4 px-5 py-3.5">
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium text-gray-800 truncate">
-                {item.product?.name ?? 'Sản phẩm'}
-              </p>
-              <p className="text-xs text-gray-400 mt-0.5">
-                x{item.quantity} · {fmt(Number(item.price_at_buy))} / cái
+        {order.items.map(item => {
+          const img = getImg(item, API_BASE_URL);
+          return (
+            <div 
+              key={item.id} 
+              className="flex items-center gap-4 px-5 py-3.5 cursor-pointer hover:bg-gray-50/60 transition-colors"
+              onClick={() => item.product?.id && navigate(`/product/${item.product.id}`)}
+              title="Xem sản phẩm"
+            >
+              <div className="w-[60px] h-[60px] rounded-xl overflow-hidden bg-gray-100 flex-shrink-0 border border-gray-100">
+                {img
+                  ? <img src={img} alt={item.product?.name} className="w-full h-full object-cover" />
+                  : <div className="w-full h-full flex items-center justify-center text-xl">🛍️</div>
+                }
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium text-gray-800 truncate hover:text-cyan-600 transition-colors">
+                  {item.product?.name ?? 'Sản phẩm'}
+                </p>
+                <p className="text-xs text-gray-400 mt-0.5">
+                  x{item.quantity} · {fmt(Number(item.price_at_buy))} / cái
+                </p>
+              </div>
+              <p className="text-sm font-bold text-gray-800 flex-shrink-0" onClick={e => e.stopPropagation()}>
+                {fmt(Number(item.price_at_buy) * item.quantity)}
               </p>
             </div>
-            <p className="text-sm font-bold text-gray-800 flex-shrink-0">
-              {fmt(Number(item.price_at_buy) * item.quantity)}
-            </p>
-          </div>
-        ))}
+          );
+        })}
       </div>
 
       {/* ── Footer ── */}
@@ -179,7 +194,7 @@ export default function OrderHistoryPage() {
     <div className="min-h-screen bg-gray-50">
       <StoreHeader />
 
-      <main className="container mx-auto px-4 py-6 max-w-3xl">
+      <main className="mx-auto w-full max-w-screen-2xl px-4 py-6">
 
         {/* ── Page header ── */}
         <div className="flex items-center gap-3 mb-6">

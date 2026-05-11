@@ -26,8 +26,9 @@ export default function CartDrawer({ isOpen, onClose, onCountChange }: Props) {
     setLoading(true);
     try {
       const data = await cartAPI.getCart();
+      const total = data.reduce((sum, item) => sum + (item.quantity || 0), 0);
       setItems(data);
-      onCountChange?.(data.length);
+      onCountChange?.(total);
     } catch {
       setItems([]);
     } finally {
@@ -76,7 +77,8 @@ export default function CartDrawer({ isOpen, onClose, onCountChange }: Props) {
       await cartAPI.removeItem(productId);
       setItems(prev => {
         const next = prev.filter(i => i.product_id !== productId);
-        onCountChange?.(next.length);
+        const total = next.reduce((sum, item) => sum + (item.quantity || 0), 0);
+        onCountChange?.(total);
         return next;
       });
       setSelected(prev => { const next = new Set(prev); next.delete(productId); return next; });
@@ -131,7 +133,7 @@ export default function CartDrawer({ isOpen, onClose, onCountChange }: Props) {
             <h2 className="text-[17px] font-bold tracking-tight">Giỏ hàng</h2>
             {items.length > 0 && (
               <span className="bg-white/25 backdrop-blur-sm text-white text-xs font-bold px-2.5 py-0.5 rounded-full">
-                {items.length}
+                {items.reduce((sum, item) => sum + item.quantity, 0)}
               </span>
             )}
           </div>
@@ -155,7 +157,7 @@ export default function CartDrawer({ isOpen, onClose, onCountChange }: Props) {
             />
             <span className="text-sm text-gray-600">
               Chọn tất cả
-              <span className="text-gray-400 ml-1">({items.length} sản phẩm)</span>
+              <span className="text-gray-400 ml-1">({items.reduce((sum, item) => sum + item.quantity, 0)} sản phẩm)</span>
             </span>
             {selected.size > 0 && (
               <span className="ml-auto text-xs font-semibold text-cyan-600">
@@ -204,6 +206,10 @@ export default function CartDrawer({ isOpen, onClose, onCountChange }: Props) {
                   onIncrease={() => updateQty(item.product_id, item.quantity + 1)}
                   onDecrease={() => updateQty(item.product_id, item.quantity - 1)}
                   onRemove={() => removeItem(item.product_id)}
+                  onProductClick={() => {
+                    onClose();
+                    navigate(`/product/${item.product_id}`);
+                  }}
                 />
               ))}
             </div>
@@ -246,7 +252,7 @@ export default function CartDrawer({ isOpen, onClose, onCountChange }: Props) {
               }}
             >
               {selectedItems.length
-                ? `Đặt hàng ngay (${selectedItems.length}) →`
+                ? `Mua hàng (${selectedItems.length}) →`
                 : "Vui lòng chọn sản phẩm"}
             </button>
           </div>
@@ -284,10 +290,11 @@ function CheckBox({
 
 // ── CartRow ───────────────────────────────────────────────────────────────────
 function CartRow({
-  item, imgSrc, checked, updating, onToggle, onIncrease, onDecrease, onRemove,
+  item, imgSrc, checked, updating, onToggle, onIncrease, onDecrease, onRemove, onProductClick,
 }: {
   item: CartItem; imgSrc: string | null; checked: boolean; updating: boolean;
   onToggle: () => void; onIncrease: () => void; onDecrease: () => void; onRemove: () => void;
+  onProductClick: () => void;
 }) {
   const price = item.product?.price ?? 0;
 
@@ -299,7 +306,10 @@ function CartRow({
       <CheckBox checked={checked} onChange={onToggle} />
 
       {/* Image */}
-      <div className="w-[68px] h-[68px] rounded-xl overflow-hidden bg-gray-50 flex-shrink-0 border border-gray-100">
+      <div 
+        className="w-[68px] h-[68px] rounded-xl overflow-hidden bg-gray-50 flex-shrink-0 border border-gray-100 cursor-pointer"
+        onClick={onProductClick}
+      >
         {imgSrc
           ? <img src={imgSrc} alt={item.product?.name} className="w-full h-full object-cover" />
           : <div className="w-full h-full flex items-center justify-center text-2xl">🛍️</div>
@@ -308,7 +318,11 @@ function CartRow({
 
       {/* Info */}
       <div className="flex-1 min-w-0">
-        <p className="text-sm font-semibold text-gray-900 truncate leading-snug">
+        <p 
+          className="text-sm font-semibold text-gray-900 truncate leading-snug cursor-pointer hover:text-cyan-600 transition-colors"
+          onClick={onProductClick}
+          title={item.product?.name}
+        >
           {item.product?.name ?? "Sản phẩm"}
         </p>
         <p className="text-[15px] font-bold text-red-500 mt-0.5">{fmt(price)}</p>

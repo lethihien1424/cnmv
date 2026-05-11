@@ -31,7 +31,7 @@ export default function SearchResultsPage() {
       try {
         if (query) {
           const [matchedProducts, productsForShops] = await Promise.all([
-            getProducts({ keyword: query, limit: 100 }),
+            getProducts({ keyword: query, limit: 100, use_ai: true }),
             getProducts({ limit: 100 }),
           ]);
 
@@ -112,7 +112,7 @@ export default function SearchResultsPage() {
               </div>
               <div>
                 <h1 className="text-xl font-semibold text-slate-900">Kết quả tìm kiếm cho “{query || 'shop đang bán'}”</h1>
-                <p className="text-sm text-slate-500">Giao diện shop hiển thị ngay giống trang xem shop.</p>
+                <p className="text-sm text-slate-500">Tích hợp AI: Tự động phân tích giá và danh mục từ ngôn ngữ tự nhiên.</p>
               </div>
             </div>
             <div className="flex items-center gap-2 text-sm text-slate-500">

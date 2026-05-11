@@ -8,7 +8,7 @@
  *   - Nếu đăng ký qua FormData có file → lưu full URL: http://localhost:5000/uploads/document-xxx.jpg
  *   - Nếu đăng ký JSON không file → lưu text số GPKD (AI sẽ báo lỗi, không phải file ảnh)
  */
-
+//D:\CNM_cu\CongNgheMoi\Backend\controllers\ocr.controller.js
 const fs = require("fs");
 const path = require("path");
 const Tesseract = require("tesseract.js");

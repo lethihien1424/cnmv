@@ -6,7 +6,7 @@ const createReview = async (userId, data) => {
     where: {
       id: data.order_id,
       buyer_id: userId,
-      order_status: "DELIVERED", // 🔥 sửa DONE → DELIVERED
+      order_status: "DELIVERED",
     },
   });
 
@@ -20,4 +20,16 @@ const createReview = async (userId, data) => {
   });
 };
 
-module.exports = { createReview };
+const getReviewsByProduct = async (productId) => {
+  return await reviewRepo.getReviewsByProduct(productId);
+};
+
+const getReviewsByBuyer = async (buyerId) => {
+  return await reviewRepo.getReviewsByBuyer(buyerId);
+};
+
+module.exports = {
+  createReview,
+  getReviewsByProduct,
+  getReviewsByBuyer,
+};

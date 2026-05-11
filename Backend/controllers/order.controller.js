@@ -5,17 +5,22 @@ const vnpayService = require("../services/vnpay.service");
 
 const createFromCart = async (req, res) => {
   try {
-    const { selected_items, payment_method, address_id } = req.body;
+    const { selected_items, payment_method, address_id, shipping_provider } = req.body;
 
     if (!address_id) {
       return res.status(400).json({ message: "Thiếu address_id" });
+    }
+
+    if (!selected_items || selected_items.length === 0) {
+      return res.status(400).json({ message: "Không có sản phẩm nào được chọn" });
     }
 
     const orders = await orderService.createOrderFromCart(
       req.user.userId,
       selected_items,
       payment_method,
-      address_id
+      address_id,
+      shipping_provider
     );
 
     if (payment_method === "COD") {
@@ -32,10 +37,21 @@ const createFromCart = async (req, res) => {
 
 const buyNow = async (req, res) => {
   try {
-    const { product_id, quantity, payment_method, address_id } = req.body;
+    // Frontend luôn gửi selected_items[], đọc product_id và quantity từ phần tử đầu tiên
+    const { selected_items, payment_method, address_id, shipping_provider } = req.body;
 
     if (!address_id) {
       return res.status(400).json({ message: "Thiếu address_id" });
+    }
+
+    if (!selected_items || selected_items.length === 0) {
+      return res.status(400).json({ message: "Thiếu thông tin sản phẩm" });
+    }
+
+    const { product_id, quantity } = selected_items[0];
+
+    if (!product_id || !quantity) {
+      return res.status(400).json({ message: "product_id hoặc quantity không hợp lệ" });
     }
 
     const orders = await orderService.buyNow(
@@ -43,7 +59,8 @@ const buyNow = async (req, res) => {
       product_id,
       quantity,
       payment_method,
-      address_id
+      address_id,
+      shipping_provider
     );
 
     if (payment_method === "COD") {
@@ -129,6 +146,8 @@ const updateStatus = async (req, res) => {
 const cancelOrder = async (req, res) => {
   try {
     const order = await orderService.getOrderById(req.params.id);
+
+    if (!order) return res.status(404).json({ message: "Không tìm thấy đơn" });
 
     if (!["PENDING", "PICKUP"].includes(order.order_status)) {
       return res.status(400).json({ message: "Không được hủy" });

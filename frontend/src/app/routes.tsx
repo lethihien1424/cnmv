@@ -17,6 +17,8 @@ import MyOrdersPage from './pages/MyOrdersPage';
 import OrderHistoryPage from './pages/OrderHistoryPage'; // ← THÊM
 import ProtectedRoute from './components/ProtectedRoute';
 import CartDrawerPage from './pages/CartPage';
+import CheckoutPage from './pages/CheckoutPage';
+import StoreOrdersPage from './pages/StoreOrdersPage';
 
 export const router = createBrowserRouter([
   { path: '/login',             Component: LoginPage },
@@ -28,7 +30,7 @@ export const router = createBrowserRouter([
   { path: '/search',            Component: SearchResultsPage },
   { path: '/stores',            Component: SearchResultsPage },
   { path: '/cart',              Component: CartDrawerPage },
-
+  { path: '/checkout', Component: CheckoutPage },   // ← THÊM ROUTE NÀY
   // ── Protected routes ──────────────────────────────────────────────────────
   {
     path: '/orders',
@@ -74,6 +76,14 @@ export const router = createBrowserRouter([
     ),
   },
   {
+    path: '/seller/orders',
+    element: (
+      <ProtectedRoute allowedRoles={['customer', 'business']}>
+        <StoreOrdersPage />
+      </ProtectedRoute>
+    ),
+  },
+  {
     path: '/seller/flash-sale',
     element: (
       <ProtectedRoute allowedRoles={['customer', 'business']}>
@@ -102,6 +112,14 @@ export const router = createBrowserRouter([
     element: (
       <ProtectedRoute allowedRoles={['customer', 'business']}>
         <EditProfilePage />
+      </ProtectedRoute>
+    ),
+  },
+  {
+    path: '/checkout',
+    element: (
+      <ProtectedRoute allowedRoles={['customer', 'business']}>
+        <CheckoutPage />
       </ProtectedRoute>
     ),
   },

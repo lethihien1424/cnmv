@@ -98,7 +98,10 @@ export default function CustomerProfilePage() {
     if (token) void fetchNotifications();
   }, [token]);
 
-  // Fetch real order counts
+  // ─── Fetch real order counts ───────────────────────────────────────────────
+  // is_reviewed được backend gắn vào (order.repository.js → attachReviewStatus)
+  // - delivered: DELIVERED + PAID + chưa review (!is_reviewed)
+  // - review:    DELIVERED + PAID + chưa review (!is_reviewed) → cần đánh giá
   useEffect(() => {
     const fetchOrders = async () => {
       if (!token) return;
@@ -109,14 +112,23 @@ export default function CustomerProfilePage() {
         if (!res.ok) return;
         const json = await res.json();
         const orders: any[] = json.data ?? json ?? [];
+
         setOrderCounts({
           pending:   orders.filter(o => o.order_status === 'PENDING').length,
           pickup:    orders.filter(o => o.order_status === 'PICKUP').length,
           shipping:  orders.filter(o => o.order_status === 'SHIPPING').length,
-          delivered: orders.filter(o => o.order_status === 'DELIVERED').length,
+          // Đã giao: DELIVERED + PAID + CHƯA có trong bảng reviews
+          delivered: orders.filter(o =>
+            o.order_status === 'DELIVERED' &&
+            o.payment_status === 'PAID' &&
+            !o.is_reviewed
+          ).length,
           cancelled: orders.filter(o => o.order_status === 'CANCELLED').length,
-          review:    orders.filter(o =>
-            o.order_status === 'DELIVERED' && o.payment_status === 'PAID'
+          // Đánh giá: DELIVERED + PAID + ĐÃ CÓ trong bảng reviews
+          review: orders.filter(o =>
+            o.order_status === 'DELIVERED' &&
+            o.payment_status === 'PAID' &&
+            o.is_reviewed === true
           ).length,
         });
       } catch { /* silently fail */ }
@@ -224,7 +236,7 @@ export default function CustomerProfilePage() {
       Icon: IconReview,
       count: orderCounts.review,
       color: 'text-yellow-500',
-      tab: 'review',
+      tab: 'reviewed',
     },
   ];
 
@@ -319,13 +331,13 @@ export default function CustomerProfilePage() {
           <CardContent className="p-4">
             <div className="flex items-center justify-between mb-4">
               <h2 className="font-semibold text-gray-800">Đơn mua</h2>
-              <Link to="/orders" className="text-sm text-cyan-600 flex items-center gap-1 hover:underline">
+              <Link to="/orders/history" className="text-sm text-cyan-600 flex items-center gap-1 hover:underline">
                 Xem lịch sử mua hàng
                 <ChevronRight className="size-4" />
               </Link>
             </div>
 
-            {/* 6 status tiles — 3 columns × 2 rows */}
+            {/* 6 status tiles */}
             <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
               {orderStats.map((stat) => (
                 <button

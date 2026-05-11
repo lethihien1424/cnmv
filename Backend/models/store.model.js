@@ -150,6 +150,8 @@
 
 //   return Store;
 // };
+//D:\CNM_cu\CongNgheMoi\Backend\models\store.model.js
+
 const { DataTypes } = require("sequelize");
 
 module.exports = (sequelize) => {

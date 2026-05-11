@@ -1,5 +1,6 @@
 const productRepository = require("../repositories/product.repository");
 const storeRepository = require("../repositories/store.repository");
+const aiService = require("./ai.service");
 
 const ROLE = {
   CUSTOMER: "Customer",
@@ -363,7 +364,7 @@ const deleteProduct = async (id, user) => {
 };
 
 const searchProducts = async (query) => {
-  const {
+  let {
     keyword,
     minPrice,
     maxPrice,
@@ -371,7 +372,18 @@ const searchProducts = async (query) => {
     store_type: storeType,
     limit,
     offset,
+    use_ai,
   } = query;
+
+  if (use_ai === "true" && keyword && keyword.length > 3) {
+    const aiParams = await aiService.parseSearchQuery(keyword);
+    if (aiParams) {
+      keyword = aiParams.keyword || keyword;
+      if (aiParams.minPrice !== null && aiParams.minPrice !== undefined) minPrice = aiParams.minPrice;
+      if (aiParams.maxPrice !== null && aiParams.maxPrice !== undefined) maxPrice = aiParams.maxPrice;
+      if (aiParams.category_id) categoryId = aiParams.category_id;
+    }
+  }
 
   const parsedMinPrice =
     minPrice !== undefined && minPrice !== "" ? Number(minPrice) : undefined;

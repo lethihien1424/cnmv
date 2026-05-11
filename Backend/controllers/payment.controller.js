@@ -11,9 +11,12 @@ const vnpayReturn = async (req, res) => {
 
     const result = handleVnpayReturn(req.query);
 
-    console.log("👉 OrderId từ VNPay:", result.orderId);
+    if (!result.orderId) {
+      console.error("❌ VNPay không trả về vnp_TxnRef (OrderId)");
+      const frontendUrl = process.env.FRONTEND_URL || "http://localhost:5173";
+      return res.redirect(`${frontendUrl}/checkout?payment_status=error&message=Missing_OrderId`);
+    }
 
-    // ✅ tìm order trước
     const order = await Order.findByPk(result.orderId);
 
     if (!order) {
@@ -21,31 +24,21 @@ const vnpayReturn = async (req, res) => {
       return res.send(`<h1>❌ Không tìm thấy đơn hàng</h1>`);
     }
 
+    const frontendUrl = process.env.FRONTEND_URL || "http://localhost:5173";
+
     if (result.success) {
       await order.update({ payment_status: "PAID", order_status: "PICKUP" });
-
       console.log("✅ Updated PAID and order_status to PICKUP");
-
-      return res.send(`
-        <h1 style="color:green;text-align:center;margin-top:100px;">
-          ✅ Thanh toán thành công!
-        </h1>
-      `);
+      return res.redirect(`${frontendUrl}/checkout?payment_status=success&order_id=${result.orderId}`);
     } else {
       await order.update({ payment_status: "FAILED" });
-
       console.log("❌ Updated FAILED");
-
-      return res.send(`
-        <h1 style="color:red;text-align:center;margin-top:100px;">
-          ❌ Thanh toán thất bại<br>
-          Mã lỗi: ${result.responseCode}
-        </h1>
-      `);
+      return res.redirect(`${frontendUrl}/checkout?payment_status=failed&error_code=${result.responseCode}`);
     }
   } catch (error) {
     console.error("VNPay Return Error:", error);
-    return res.send(`<h1>❌ ${error.message}</h1>`);
+    const frontendUrl = process.env.FRONTEND_URL || "http://localhost:5173";
+    return res.redirect(`${frontendUrl}/checkout?payment_status=error&message=${encodeURIComponent(error.message)}`);
   }
 };
 

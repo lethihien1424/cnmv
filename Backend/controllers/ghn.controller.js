@@ -1,3 +1,4 @@
+//D:\CNM_cu\CongNgheMoi\Backend\controllers\ghn.controller.js
 const ghnService = require("../services/ghn.service");
 
 const getProvinces = async (req, res) => {

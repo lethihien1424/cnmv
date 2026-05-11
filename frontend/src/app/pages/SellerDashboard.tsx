@@ -5,6 +5,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { Button } from '../components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { Badge } from '../components/ui/badge';
+import { Separator } from '../components/ui/separator';
 import ChatBox from '../components/ChatBox';
 import NotificationBell from '../components/NotificationBell';
 import { toast } from 'sonner'; // Nhớ cài thư viện toast nếu chưa có
@@ -29,6 +30,7 @@ import {
   type SellerReportData,
   type SellerReportPeriod,
 } from '../services/sellerReportService';
+import { orderAPI, type Order } from '../services/orderService';
 import {
   Home,
   Package,
@@ -47,6 +49,9 @@ import {
   ArrowDownRight,
   LogOut,
   MessageCircle,
+  Truck,
+  CheckCircle,
+  XCircle,
   Zap // Thêm icon Zap cho Flash Sale
 } from 'lucide-react';
 
@@ -113,6 +118,9 @@ export default function SellerDashboard() {
     stock: '',
     loading: false,
   });
+  const [orders, setOrders] = useState<Order[]>([]);
+  const [ordersLoading, setOrdersLoading] = useState(false);
+  const [orderSearchTerm, setOrderSearchTerm] = useState('');
 
   const handleVariantImageUpload = (index: number, file: File | null) => {
     if (!file) {
@@ -300,10 +308,10 @@ export default function SellerDashboard() {
 
     try {
       const sellerProducts = await getSellerProducts({
-        userId: user.id,
+        userId: user?.id || '',
         token,
-        storeId: user.businessStoreId || user.c2cStoreId,
-        storeType: user.role === 'business' ? 'B2C' : 'C2C',
+        storeId: user?.businessStoreId || user?.c2cStoreId || '',
+        storeType: user?.role === 'business' ? 'B2C' : 'C2C',
       });
       setProducts(sellerProducts);
     } catch (error) {
@@ -326,8 +334,51 @@ export default function SellerDashboard() {
     if (activeTab === 'products') {
       void loadProducts();
       void loadCategories();
+    } else if (activeTab === 'orders') {
+      void loadOrders();
     }
   }, [activeTab]);
+
+  const loadOrders = async () => {
+    if (!storeId) return;
+    setOrdersLoading(true);
+    try {
+      const data = await orderAPI.getStoreOrders(storeId);
+      setOrders(data);
+    } catch (error) {
+      console.error('Failed to load orders:', error);
+    } finally {
+      setOrdersLoading(false);
+    }
+  };
+
+  const handleUpdateOrderStatus = async (orderId: string, status: string) => {
+    try {
+      await orderAPI.updateStatus(orderId, status);
+      toast.success(`Cập nhật trạng thái thành ${status} thành công`);
+      void loadOrders();
+    } catch (error: any) {
+      toast.error(error.message);
+    }
+  };
+
+  const handleCancelOrder = async (orderId: string) => {
+    if (!window.confirm("Bạn có chắc chắn muốn hủy đơn hàng này?")) return;
+    try {
+      await orderAPI.cancelOrder(orderId);
+      toast.success("Đã hủy đơn hàng");
+      void loadOrders();
+    } catch (error: any) {
+      toast.error(error.message);
+    }
+  };
+
+  const filteredOrders = useMemo(() => {
+    return orders.filter(o =>
+      o.id.toLowerCase().includes(orderSearchTerm.toLowerCase()) ||
+      o.shipping_address.toLowerCase().includes(orderSearchTerm.toLowerCase())
+    );
+  }, [orders, orderSearchTerm]);
 
   useEffect(() => {
     if (activeTab !== 'customers' || !storeId) {
@@ -375,12 +426,12 @@ export default function SellerDashboard() {
     socket.on('store_conversations', (payload: StoreConversation[]) => {
       const normalized = Array.isArray(payload)
         ? payload
-            .filter((conversation) => conversation?.userId && conversation?.storeId)
-            .map((conversation) => ({
-              ...conversation,
-              customerName: conversation.customerName || 'Khách hàng',
-            }))
-            .sort((left, right) => new Date(right.updatedAt).getTime() - new Date(left.updatedAt).getTime())
+          .filter((conversation) => conversation?.userId && conversation?.storeId)
+          .map((conversation) => ({
+            ...conversation,
+            customerName: conversation.customerName || 'Khách hàng',
+          }))
+          .sort((left, right) => new Date(right.updatedAt).getTime() - new Date(left.updatedAt).getTime())
         : [];
 
       setStoreConversations(normalized);
@@ -553,21 +604,21 @@ export default function SellerDashboard() {
 
           const validImageUrl =
             variant.image_url &&
-            !variant.image_url.startsWith('data:') &&
-            (variant.image_url.startsWith('http://') ||
-              variant.image_url.startsWith('https://') ||
-              variant.image_url.startsWith('/uploads/'))
+              !variant.image_url.startsWith('data:') &&
+              (variant.image_url.startsWith('http://') ||
+                variant.image_url.startsWith('https://') ||
+                variant.image_url.startsWith('/uploads/'))
               ? variant.image_url.trim()
               : undefined;
 
           return {
-          color: variant.color.trim(),
-          size: variant.size.trim(),
-          price: Number(variant.price),
-          stock_quantity: Number(variant.stock_quantity || 0),
-          image_index: imageIndex,
-          image_url: validImageUrl,
-        };
+            color: variant.color.trim(),
+            size: variant.size.trim(),
+            price: Number(variant.price),
+            stock_quantity: Number(variant.stock_quantity || 0),
+            image_index: imageIndex,
+            image_url: validImageUrl,
+          };
         })
         .filter((variant) => Number.isFinite(variant.price) && variant.price >= 0);
 
@@ -773,7 +824,7 @@ export default function SellerDashboard() {
   // LƯU CÀI ĐẶT FLASH SALE (GỌI API)
   const handleSaveFlashSale = async () => {
     const { product, isFlashSale, price, stock } = flashSaleModal;
-    
+
     if (isFlashSale && (!price || !stock)) {
       toast.error("Vui lòng nhập giá và số lượng khuyến mãi");
       return;
@@ -796,7 +847,7 @@ export default function SellerDashboard() {
 
       toast.success("Cập nhật Flash Sale thành công");
       setFlashSaleModal(prev => ({ ...prev, isOpen: false }));
-      
+
       // Tải lại danh sách sản phẩm để cập nhật UI
       await loadProducts();
     } catch (error: any) {
@@ -808,9 +859,9 @@ export default function SellerDashboard() {
   };
 
   const canManageShop =
-    user.role === 'business'
-      ? user.storeStatus === 'APPROVED'
-      : Boolean(user.hasC2CStore || user.c2cStoreId);
+    user?.role === 'business'
+      ? user?.storeStatus === 'APPROVED'
+      : Boolean(user?.hasC2CStore || user?.c2cStoreId);
 
   if (!canManageShop) {
     return (
@@ -863,18 +914,17 @@ export default function SellerDashboard() {
             const Icon = item.icon;
             const isActive = activeTab === item.id;
             return (
-               <button
-                 key={item.id}
-                 onClick={() => setActiveTab(item.id as DashboardTab)}
-                 className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg mb-1 transition-all ${
-                   isActive
-                     ? 'bg-red-50 text-red-600'
-                     : 'text-gray-600 hover:bg-gray-50'
-                 }`}
-               >
-                 <Icon className="size-5" />
-                 <span>{item.label}</span>
-               </button>
+              <button
+                key={item.id}
+                onClick={() => setActiveTab(item.id as DashboardTab)}
+                className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg mb-1 transition-all ${isActive
+                    ? 'bg-red-50 text-red-600'
+                    : 'text-gray-600 hover:bg-gray-50'
+                  }`}
+              >
+                <Icon className="size-5" />
+                <span>{item.label}</span>
+              </button>
             );
           })}
         </nav>
@@ -952,9 +1002,8 @@ export default function SellerDashboard() {
                             <ArrowDownRight className="size-4 text-red-600" />
                           )}
                           <span
-                            className={`text-sm ${
-                              stat.isPositive ? 'text-green-600' : 'text-red-600'
-                            }`}
+                            className={`text-sm ${stat.isPositive ? 'text-green-600' : 'text-red-600'
+                              }`}
                           >
                             {stat.change}
                           </span>
@@ -1237,11 +1286,10 @@ export default function SellerDashboard() {
                             setProductForm((prev) => ({ ...prev, description: event.target.value }));
                             if (isModerationError) setIsModerationError(false); // Tắt cờ lỗi khi user sửa
                           }}
-                          className={`w-full px-3 py-2 border rounded-lg transition-colors ${
-                            isModerationError
+                          className={`w-full px-3 py-2 border rounded-lg transition-colors ${isModerationError
                               ? 'border-red-500 ring-2 ring-red-200 bg-red-50'
                               : 'border-gray-300 focus:border-red-400'
-                          }`}
+                            }`}
                           placeholder="Mô tả ngắn về sản phẩm"
                         />
                       </div>
@@ -1305,7 +1353,7 @@ export default function SellerDashboard() {
                           </div>
                           <div className="flex items-center gap-2">
                             {getStatusBadge(product.status)}
-                            
+
                             {/* NÚT THÊM/SỬA FLASH SALE */}
                             <Button
                               variant={product.is_flash_sale ? "default" : "outline"}
@@ -1372,11 +1420,10 @@ export default function SellerDashboard() {
                                 key={tab.id}
                                 type="button"
                                 onClick={() => setShopCategoryFilter(tab.id)}
-                                className={`shrink-0 rounded-full border px-4 py-1.5 text-sm transition-all ${
-                                  shopCategoryFilter === tab.id
+                                className={`shrink-0 rounded-full border px-4 py-1.5 text-sm transition-all ${shopCategoryFilter === tab.id
                                     ? 'border-red-500 bg-red-50 text-red-600'
                                     : 'border-gray-200 text-gray-600 hover:border-gray-300 hover:bg-gray-50'
-                                }`}
+                                  }`}
                               >
                                 {tab.label}
                               </button>
@@ -1430,50 +1477,125 @@ export default function SellerDashboard() {
           {/* Orders Tab */}
           {activeTab === 'orders' && (
             <div className="space-y-6">
-              <div>
-                <h1 className="text-2xl mb-1">Đơn hàng</h1>
-                <p className="text-gray-500">Quản lý tất cả đơn hàng</p>
+              <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                <div>
+                  <h1 className="text-2xl font-bold text-gray-900">Quản lý đơn hàng</h1>
+                  <p className="text-gray-500">Bạn có tổng cộng {orders.length} đơn hàng</p>
+                </div>
+                <div className="relative w-full md:w-80">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-gray-400" />
+                  <input
+                    type="text"
+                    placeholder="Tìm mã đơn, địa chỉ..."
+                    className="w-full pl-10 pr-4 py-2 border rounded-xl focus:ring-2 focus:ring-red-500 transition-all outline-none"
+                    value={orderSearchTerm}
+                    onChange={(e) => setOrderSearchTerm(e.target.value)}
+                  />
+                </div>
               </div>
 
-              <Card>
-                <CardContent className="p-6">
-                  <div className="overflow-x-auto">
-                    <table className="w-full">
-                      <thead>
-                        <tr className="border-b">
-                          <th className="text-left py-3 px-4 text-sm font-medium text-gray-500">Mã đơn</th>
-                          <th className="text-left py-3 px-4 text-sm font-medium text-gray-500">Khách hàng</th>
-                          <th className="text-left py-3 px-4 text-sm font-medium text-gray-500">Ngày</th>
-                          <th className="text-left py-3 px-4 text-sm font-medium text-gray-500">Tổng tiền</th>
-                          <th className="text-left py-3 px-4 text-sm font-medium text-gray-500">Trạng thái</th>
-                          <th className="text-left py-3 px-4 text-sm font-medium text-gray-500">Hành động</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {recentOrders.map((order) => (
-                          <tr key={order.id} className="border-b hover:bg-gray-50">
-                            <td className="py-3 px-4 font-medium">{order.id}</td>
-                            <td className="py-3 px-4">{order.customer}</td>
-                            <td className="py-3 px-4 text-gray-500">{order.date}</td>
-                            <td className="py-3 px-4 font-medium">{order.total}</td>
-                            <td className="py-3 px-4">{getStatusBadge(order.status)}</td>
-                            <td className="py-3 px-4">
-                              <div className="flex gap-2">
-                                <Button variant="ghost" size="sm">
-                                  <Eye className="size-4" />
-                                </Button>
-                                <Button variant="ghost" size="sm">
-                                  <Edit className="size-4" />
-                                </Button>
+              {ordersLoading ? (
+                <div className="flex items-center justify-center py-20">
+                  <div className="animate-spin size-10 border-4 border-red-500 border-t-transparent rounded-full" />
+                </div>
+              ) : filteredOrders.length === 0 ? (
+                <Card className="py-20">
+                  <CardContent className="flex flex-col items-center justify-center">
+                    <div className="size-20 bg-gray-100 rounded-full flex items-center justify-center mb-4">
+                      <ShoppingCart className="size-10 text-gray-300" />
+                    </div>
+                    <h3 className="text-lg font-medium text-gray-900">Không tìm thấy đơn hàng</h3>
+                    <p className="text-gray-500 mt-1">Shop của bạn hiện chưa có đơn hàng nào.</p>
+                  </CardContent>
+                </Card>
+              ) : (
+                <div className="grid gap-4">
+                  {filteredOrders.map((order) => (
+                    <Card key={order.id} className="overflow-hidden border-none shadow-sm hover:shadow-md transition-shadow">
+                      <div className="bg-gray-50/80 px-6 py-3 border-b flex flex-wrap items-center justify-between gap-4">
+                        <div className="flex items-center gap-3">
+                          <span className="font-bold text-gray-900">#{order.id.slice(0, 8).toUpperCase()}</span>
+                          <Separator orientation="vertical" className="h-4" />
+                          <span className="text-sm text-gray-500">{new Date(order.created_at).toLocaleString('vi-VN')}</span>
+                          {getStatusBadge(order.order_status)}
+                        </div>
+                        <div className="flex items-center gap-4">
+                          <span className="text-sm text-gray-500">Thanh toán: <span className="font-medium text-gray-900">{order.payment_method}</span></span>
+                          <Badge variant={order.payment_status === 'PAID' ? 'default' : 'outline'} className={order.payment_status === 'PAID' ? 'bg-green-500 text-white border-transparent' : ''}>
+                            {order.payment_status === 'PAID' ? 'Đã thanh toán' : 'Chưa thanh toán'}
+                          </Badge>
+                        </div>
+                      </div>
+
+                      <CardContent className="p-4">
+                        <div className="flex flex-col lg:flex-row gap-6">
+                          {/* Products Info */}
+                          <div className="flex-1 space-y-3">
+                            {order.items.map((item) => (
+                              <div key={item.id} className="flex gap-3 p-2 rounded-lg border border-gray-50 bg-white">
+                                <div className="size-12 rounded overflow-hidden bg-gray-50 flex-shrink-0">
+                                  {item.product?.images?.[0] ? (
+                                    <img src={item.product.images[0]} alt={item.product.name} className="w-full h-full object-cover" />
+                                  ) : (
+                                    <div className="w-full h-full flex items-center justify-center text-xl text-gray-300">📦</div>
+                                  )}
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                  <h4 className="text-sm font-medium text-gray-900 truncate">{item.product?.name || 'Sản phẩm'}</h4>
+                                  <div className="flex justify-between items-center mt-1">
+                                    <p className="text-xs text-gray-500">Số lượng: {item.quantity}</p>
+                                    <p className="text-sm font-semibold text-red-500">{(item.price_at_buy || 0).toLocaleString('vi-VN')}₫</p>
+                                  </div>
+                                </div>
                               </div>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </CardContent>
-              </Card>
+                            ))}
+                          </div>
+
+                          {/* Shipping & Summary */}
+                          <div className="lg:w-80 flex flex-col justify-between border-t lg:border-t-0 lg:border-l lg:pl-6 pt-4 lg:pt-0">
+                            <div className="space-y-3">
+                              <div className="bg-gray-50 p-3 rounded-lg border border-gray-100">
+                                <h5 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Địa chỉ nhận hàng</h5>
+                                <p className="text-sm text-gray-700 line-clamp-2">{order.shipping_address}</p>
+                              </div>
+                              <div className="flex justify-between items-center">
+                                <span className="text-sm text-gray-500">Tổng cộng:</span>
+                                <span className="text-lg font-bold text-red-600">{order.total_amount.toLocaleString('vi-VN')}₫</span>
+                              </div>
+                            </div>
+
+                            <div className="flex flex-wrap gap-2 mt-4">
+                              {order.order_status === 'PENDING' && (
+                                <>
+                                  <Button size="sm" className="bg-red-500 hover:bg-red-600" onClick={() => handleUpdateOrderStatus(order.id, 'PICKUP')}>
+                                    <Package className="size-4 mr-1.5" /> Xác nhận
+                                  </Button>
+                                  <Button size="sm" variant="outline" className="text-red-500 border-red-200 hover:bg-red-50" onClick={() => handleCancelOrder(order.id)}>
+                                    Hủy
+                                  </Button>
+                                </>
+                              )}
+                              {order.order_status === 'PICKUP' && (
+                                <Button size="sm" className="bg-blue-500 hover:bg-blue-600" onClick={() => handleUpdateOrderStatus(order.id, 'SHIPPING')}>
+                                  <Truck className="size-4 mr-1.5" /> Giao hàng
+                                </Button>
+                              )}
+                              {order.order_status === 'SHIPPING' && (
+                                <Button size="sm" className="bg-green-500 hover:bg-green-600" onClick={() => handleUpdateOrderStatus(order.id, 'DELIVERED')}>
+                                  <CheckCircle className="size-4 mr-1.5" /> Hoàn tất
+                                </Button>
+                              )}
+                              <Button size="sm" variant="ghost" onClick={() => navigate(`/order/${order.id}`)}>
+                                <Eye className="size-4" />
+                              </Button>
+                            </div>
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              )}
             </div>
           )}
 
@@ -1519,9 +1641,8 @@ export default function SellerDashboard() {
                                 key={conversation.userId}
                                 type="button"
                                 onClick={() => setSelectedChatUserId(conversation.userId)}
-                                className={`w-full text-left px-4 py-3 border-b transition-colors ${
-                                  isSelected ? 'bg-red-50 border-l-4 border-l-red-500' : 'hover:bg-white'
-                                }`}
+                                className={`w-full text-left px-4 py-3 border-b transition-colors ${isSelected ? 'bg-red-50 border-l-4 border-l-red-500' : 'hover:bg-white'
+                                  }`}
                               >
                                 <div className="flex items-center justify-between gap-2">
                                   <p className="font-medium text-sm text-gray-800 truncate">{conversation.customerName || 'Khách hàng'}</p>
@@ -1746,11 +1867,11 @@ export default function SellerDashboard() {
             </div>
 
             <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg border">
-              <input 
-                type="checkbox" 
+              <input
+                type="checkbox"
                 id="flashSaleToggle"
-                checked={flashSaleModal.isFlashSale} 
-                onChange={(e) => setFlashSaleModal(prev => ({...prev, isFlashSale: e.target.checked}))} 
+                checked={flashSaleModal.isFlashSale}
+                onChange={(e) => setFlashSaleModal(prev => ({ ...prev, isFlashSale: e.target.checked }))}
                 className="size-5 rounded border-gray-300 text-red-500 focus:ring-red-500"
               />
               <label htmlFor="flashSaleToggle" className="font-medium cursor-pointer">Bật Flash Sale cho sản phẩm này</label>
@@ -1760,20 +1881,20 @@ export default function SellerDashboard() {
               <div className="space-y-4 pt-2 border-t">
                 <div>
                   <label className="text-sm font-medium mb-1 block">Giá khuyến mãi (VNĐ) <span className="text-red-500">*</span></label>
-                  <Input 
-                    type="number" 
-                    value={flashSaleModal.price} 
-                    onChange={(e) => setFlashSaleModal(prev => ({...prev, price: e.target.value}))}
+                  <Input
+                    type="number"
+                    value={flashSaleModal.price}
+                    onChange={(e) => setFlashSaleModal(prev => ({ ...prev, price: e.target.value }))}
                     placeholder="Ví dụ: 50000"
                     className="focus-visible:ring-red-500"
                   />
                 </div>
                 <div>
                   <label className="text-sm font-medium mb-1 block">Số lượng khuyến mãi <span className="text-red-500">*</span></label>
-                  <Input 
-                    type="number" 
-                    value={flashSaleModal.stock} 
-                    onChange={(e) => setFlashSaleModal(prev => ({...prev, stock: e.target.value}))}
+                  <Input
+                    type="number"
+                    value={flashSaleModal.stock}
+                    onChange={(e) => setFlashSaleModal(prev => ({ ...prev, stock: e.target.value }))}
                     placeholder="Ví dụ: 100"
                     className="focus-visible:ring-red-500"
                   />
@@ -1783,10 +1904,10 @@ export default function SellerDashboard() {
             )}
 
             <div className="flex justify-end gap-3 pt-4 border-t">
-              <Button variant="outline" onClick={() => setFlashSaleModal(prev => ({...prev, isOpen: false}))}>Hủy bỏ</Button>
-              <Button 
-                onClick={handleSaveFlashSale} 
-                disabled={flashSaleModal.loading} 
+              <Button variant="outline" onClick={() => setFlashSaleModal(prev => ({ ...prev, isOpen: false }))}>Hủy bỏ</Button>
+              <Button
+                onClick={handleSaveFlashSale}
+                disabled={flashSaleModal.loading}
                 className="bg-red-500 hover:bg-red-600 text-white"
               >
                 {flashSaleModal.loading ? "Đang lưu..." : "Lưu cài đặt"}

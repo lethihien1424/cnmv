@@ -1,8 +1,24 @@
 const express = require("express");
-const router = express.Router();
-const ctrl = require("../controllers/review.controller");
-const { verifyToken, checkRole } = require("../middlewares/auth.middleware");
+const reviewController = require("../controllers/review.controller");
+const { verifyToken } = require("../middlewares/auth.middleware");
 
-router.post("/", verifyToken, checkRole(["Customer"]), ctrl.createReview);
+const router = express.Router();
+
+router.post(
+  "/",
+  verifyToken,
+  reviewController.createReview
+);
+
+router.get(
+  "/product/:productId",
+  reviewController.getReviewsByProduct
+);
+
+router.get(
+  "/me",
+  verifyToken,
+  reviewController.getMyReviews
+);
 
 module.exports = router;

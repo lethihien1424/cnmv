@@ -120,10 +120,13 @@ export interface FlashSaleSuggestion {
 
 export interface ProductQuery {
   keyword?: string;
+  minPrice?: number;
+  maxPrice?: number;
   category_id?: string;
   store_type?: 'C2C' | 'B2C';
   limit?: number;
   offset?: number;
+  use_ai?: boolean;
 }
 
 const buildAuthToken = (token?: string | null) => token ?? localStorage.getItem('token');
@@ -164,10 +167,13 @@ const buildQueryString = (query: ProductQuery = {}) => {
   const params = new URLSearchParams();
 
   if (query.keyword) params.set('keyword', query.keyword);
+  if (query.minPrice !== undefined) params.set('minPrice', String(query.minPrice));
+  if (query.maxPrice !== undefined) params.set('maxPrice', String(query.maxPrice));
   if (query.category_id) params.set('category_id', query.category_id);
   if (query.store_type) params.set('store_type', query.store_type);
   if (query.limit !== undefined) params.set('limit', String(query.limit));
   if (query.offset !== undefined) params.set('offset', String(query.offset));
+  if (query.use_ai) params.set('use_ai', 'true');
 
   const queryString = params.toString();
   return queryString ? `?${queryString}` : '';

@@ -45,6 +45,8 @@ export default function StoreHeader({
 
   const [showCategoryMenu, setShowCategoryMenu] = React.useState(false);
   const [showUserMenu, setShowUserMenu] = React.useState(false);
+  const [showSearchHistory, setShowSearchHistory] = React.useState(false);
+  const [searchHistory, setSearchHistory] = React.useState<string[]>([]);
   const [categories, setCategories] = React.useState<Category[]>([]);
 
   // ── Cart ────────────────────────────────────────────────────────────────────
@@ -56,20 +58,27 @@ export default function StoreHeader({
   const canManageBusinessShop =
     user?.role === 'business' && user.hasManageShop === true;
 
-  // Load categories
+  // Load categories and search history
   React.useEffect(() => {
     const load = async () => {
       try { setCategories(await getCategories()); }
       catch { setCategories([]); }
     };
     void load();
+    try {
+      const h = JSON.parse(localStorage.getItem('searchHistory') || '[]');
+      if (Array.isArray(h)) setSearchHistory(h);
+    } catch {}
   }, []);
 
   // Load initial cart count (badge on header)
   React.useEffect(() => {
     if (!isCustomer || !localStorage.getItem('token')) return;
     cartAPI.getCart()
-      .then(data => setCartCount(data.length))
+      .then(data => {
+        const total = data.reduce((sum, item) => sum + (item.quantity || 0), 0);
+        setCartCount(total);
+      })
       .catch(() => setCartCount(0));
   }, [isCustomer]);
 
@@ -78,7 +87,10 @@ export default function StoreHeader({
     const handleUpdate = () => {
       if (!isCustomer || !localStorage.getItem('token')) return;
       cartAPI.getCart()
-        .then(data => setCartCount(data.length))
+        .then(data => {
+          const total = data.reduce((sum, item) => sum + (item.quantity || 0), 0);
+          setCartCount(total);
+        })
         .catch(() => {});
     };
     window.addEventListener('cartUpdated', handleUpdate);
@@ -91,6 +103,7 @@ export default function StoreHeader({
       const t = e.target as HTMLElement;
       if (!t.closest('[data-header-user]')) setShowUserMenu(false);
       if (!t.closest('[data-header-category]')) setShowCategoryMenu(false);
+      if (!t.closest('[data-header-search]')) setShowSearchHistory(false);
     };
     document.addEventListener('mousedown', handler);
     return () => document.removeEventListener('mousedown', handler);
@@ -100,6 +113,12 @@ export default function StoreHeader({
 
   const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+    if (searchValue.trim()) {
+      const newH = [searchValue.trim(), ...searchHistory.filter(x => x !== searchValue.trim())].slice(0, 5);
+      localStorage.setItem('searchHistory', JSON.stringify(newH));
+      setSearchHistory(newH);
+      setShowSearchHistory(false);
+    }
     onSearchSubmit?.();
   };
 
@@ -178,17 +197,59 @@ export default function StoreHeader({
               </span>
             </Link>
 
-            <div className="flex-1 min-w-[260px] max-w-2xl">
+            <div className="flex-1 min-w-[260px] max-w-2xl relative" data-header-search>
               <form className="relative" onSubmit={handleSubmit}>
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-5 text-gray-400" />
                 <Input
                   type="text"
                   value={searchValue}
-                  onChange={e => onSearchValueChange?.(e.target.value)}
+                  onChange={e => {
+                    onSearchValueChange?.(e.target.value);
+                    setShowSearchHistory(true);
+                  }}
+                  onFocus={() => setShowSearchHistory(true)}
                   placeholder={searchPlaceholder}
                   className="pl-10 pr-4 h-11 rounded-full border-2 border-gray-200 focus:border-cyan-500"
                 />
               </form>
+              {showSearchHistory && searchHistory.length > 0 && (
+                <div className="absolute top-full left-0 right-0 mt-1 bg-white border rounded-lg shadow-lg z-50 overflow-hidden">
+                  <div className="p-2 px-3 bg-gray-50 text-xs font-semibold text-gray-500 flex justify-between">
+                    <span>Lịch sử tìm kiếm</span>
+                  </div>
+                  <ul>
+                    {searchHistory.map((item, idx) => (
+                      <li key={idx} className="flex items-center hover:bg-gray-50 transition-colors">
+                        <button
+                          className="flex-1 text-left px-4 py-2.5 text-sm flex items-center gap-3"
+                          onClick={() => {
+                            if (onSearchValueChange) onSearchValueChange(item);
+                            setShowSearchHistory(false);
+                            navigate(`/search?q=${encodeURIComponent(item)}`);
+                          }}
+                        >
+                          <Search className="size-4 text-gray-400" />
+                          <span className="flex-1 truncate">{item}</span>
+                        </button>
+                        <button
+                          className="px-4 py-2.5 text-gray-400 hover:text-red-500 transition-colors flex items-center justify-center"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            const newH = searchHistory.filter((_, i) => i !== idx);
+                            setSearchHistory(newH);
+                            localStorage.setItem('searchHistory', JSON.stringify(newH));
+                          }}
+                          title="Xóa khỏi lịch sử"
+                        >
+                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M18 6 6 18"/><path d="m6 6 12 12"/>
+                          </svg>
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
             </div>
 
             <div className="ml-auto flex min-w-[160px] items-center justify-end gap-2 sm:gap-3">

@@ -1,3 +1,4 @@
+//D:\CNM_cu\CongNgheMoi\Backend\routes\product.route.js
 const express = require("express");
 const productController = require("../controllers/product.controller");
 const { verifyToken, checkRole } = require("../middlewares/auth.middleware");

@@ -1,3 +1,4 @@
+//D:\CNM_cu\CongNgheMoi\Backend\controllers\product.controller.js
 const productService = require("../services/product.service");
 
 const createProduct = async (req, res) => {

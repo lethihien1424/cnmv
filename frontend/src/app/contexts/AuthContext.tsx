@@ -42,7 +42,7 @@
 //   useEffect(() => {
 //     const savedToken = localStorage.getItem('token');
 //     const savedUser = localStorage.getItem('user');
-    
+
 //     if (savedToken && savedUser) {
 //       setToken(savedToken);
 //       setUser(JSON.parse(savedUser));
@@ -71,10 +71,10 @@
 
 //       setUser(mappedUser);
 //       setToken(apiToken);
-      
+
 //       localStorage.setItem('token', apiToken);
 //       localStorage.setItem('user', JSON.stringify(mappedUser));
-      
+
 //       axios.defaults.headers.common['Authorization'] = `Bearer ${apiToken}`;
 //     } catch (error: any) {
 //       if (error.response && error.response.data) {
@@ -164,7 +164,7 @@
 //         hasC2CStore: true,
 //         c2cStoreId: apiStore.id,
 //       };
-      
+
 //       setUser(updatedUser);
 //       localStorage.setItem('user', JSON.stringify(updatedUser));
 //     } catch (error: any) {
@@ -217,7 +217,7 @@ export interface User {
   status?: string;
   storeName?: string;
   businessLicense?: string;
-  taxCode?: string; 
+  taxCode?: string;
   hasC2CStore?: boolean;
   c2cStoreId?: string;
   businessStoreId?: string;
@@ -327,7 +327,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     const savedToken = localStorage.getItem('token');
     const savedUser = localStorage.getItem('user');
-    
+
     if (savedToken && savedUser) {
       setToken(savedToken);
       const parsedUser = JSON.parse(savedUser) as User;
@@ -364,7 +364,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         role: apiUser.role.toLowerCase() as UserRole,
         status: apiUser.status,
         // Sửa lỗi: Lấy trạng thái cửa hàng từ Backend trả về khi Login
-        hasC2CStore: apiUser.hasC2CStore || false, 
+        hasC2CStore: apiUser.hasC2CStore || false,
         c2cStoreId: apiUser.c2cStoreId || undefined,
         businessStoreId: undefined,
         storeName: apiUser.storeName || '',

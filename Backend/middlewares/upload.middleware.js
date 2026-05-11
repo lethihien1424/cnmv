@@ -28,6 +28,9 @@
 // module.exports = {
 //   uploadProductImages,
 // };
+//
+//D:\CNM_cu\CongNgheMoi\Backend\middlewares\upload.middleware.js
+
 const path = require("path");
 const multer = require("multer");
 

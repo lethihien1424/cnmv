@@ -1,5 +1,5 @@
 const { Op } = require("sequelize");
-const { Product, Store, User } = require("../models");
+const { Product, Store, User, Category } = require("../models");
 
 const createProduct = async (payload) => {
   return Product.create(payload);
@@ -37,9 +37,11 @@ const searchProducts = async ({
   const where = {};
 
   if (keyword) {
-    where.name = {
-      [Op.iLike]: `%${keyword}%`,
-    };
+    where[Op.or] = [
+      { name: { [Op.iLike]: `%${keyword}%` } },
+      { "$store.store_name$": { [Op.iLike]: `%${keyword}%` } },
+      { "$category.name$": { [Op.iLike]: `%${keyword}%` } },
+    ];
   }
 
   if (minPrice !== undefined || maxPrice !== undefined) {
@@ -74,9 +76,15 @@ const searchProducts = async ({
     includeStore.required = true;
   }
 
+  const includeCategory = {
+    model: Category,
+    as: "category",
+    attributes: ["id", "name"],
+  };
+
   return Product.findAndCountAll({
     where,
-    include: [includeStore],
+    include: [includeStore, includeCategory],
     limit,
     offset,
     order: [["created_at", "DESC"]],

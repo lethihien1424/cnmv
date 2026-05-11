@@ -30,7 +30,8 @@ type Order = {
   shipping_address?: string;
   created_at: string;
   items: OrderItem[];
-  reviewed?: boolean;
+  // is_reviewed: backend trả về, true nếu đơn đã có trong bảng reviews
+  is_reviewed?: boolean;
 };
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -59,7 +60,7 @@ const TABS = [
         <path d="M5 12h14M12 5l7 7-7 7"/>
       </svg>
     ),
-    color: 'text-amber-500', bg: 'bg-amber-50', border: 'border-amber-200',
+    color: 'text-amber-500', bg: 'bg-amber-50',
     match: (o: Order) => o.order_status === 'PENDING',
   },
   {
@@ -70,7 +71,7 @@ const TABS = [
         <rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2"/>
       </svg>
     ),
-    color: 'text-blue-500', bg: 'bg-blue-50', border: 'border-blue-200',
+    color: 'text-blue-500', bg: 'bg-blue-50',
     match: (o: Order) => o.order_status === 'PICKUP',
   },
   {
@@ -82,7 +83,7 @@ const TABS = [
         <circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/>
       </svg>
     ),
-    color: 'text-cyan-500', bg: 'bg-cyan-50', border: 'border-cyan-200',
+    color: 'text-cyan-500', bg: 'bg-cyan-50',
     match: (o: Order) => o.order_status === 'SHIPPING',
   },
   {
@@ -93,8 +94,12 @@ const TABS = [
         <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/>
       </svg>
     ),
-    color: 'text-green-500', bg: 'bg-green-50', border: 'border-green-200',
-    match: (o: Order) => o.order_status === 'DELIVERED',
+    color: 'text-green-500', bg: 'bg-green-50',
+    // Đã giao + PAID + CHƯA review
+    match: (o: Order) =>
+      o.order_status === 'DELIVERED' &&
+      o.payment_status === 'PAID' &&
+      !o.is_reviewed,
   },
   {
     key: 'cancelled',
@@ -104,24 +109,24 @@ const TABS = [
         <circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/>
       </svg>
     ),
-    color: 'text-red-400', bg: 'bg-red-50', border: 'border-red-200',
+    color: 'text-red-400', bg: 'bg-red-50',
     match: (o: Order) => o.order_status === 'CANCELLED',
   },
   
   {
-    // Đã đánh giá: DELIVERED + PAID + reviewed = true
     key: 'reviewed',
     label: 'Đánh giá',
     icon: (
-      <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor" stroke="none">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor">
         <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" fill="#FBBF24"/>
       </svg>
     ),
-    color: 'text-amber-400', bg: 'bg-amber-50', border: 'border-amber-200',
+    color: 'text-amber-400', bg: 'bg-amber-50',
+    // Đã review → có trong bảng reviews
     match: (o: Order) =>
       o.order_status === 'DELIVERED' &&
       o.payment_status === 'PAID' &&
-      o.reviewed === true,
+      o.is_reviewed === true,
   },
 ];
 
@@ -153,19 +158,14 @@ function StarRating({ value, onChange }: { value: number; onChange: (v: number) 
 
 // ─── Review Modal ─────────────────────────────────────────────────────────────
 function ReviewModal({
-  order,
-  onClose,
-  onSubmit,
+  order, onClose, onSubmit,
 }: {
   order: Order;
   onClose: () => void;
-  onSubmit: (
-    orderId: string,
-    items: { product_id: string; rating: number; comment: string }[]
-  ) => Promise<void>;
+  onSubmit: (orderId: string, items: { product_id: string; rating: number; comment: string }[]) => Promise<void>;
 }) {
-  const [ratings, setRatings]   = useState<Record<string, number>>({});
-  const [comments, setComments] = useState<Record<string, string>>({});
+  const [ratings,    setRatings]    = useState<Record<string, number>>({});
+  const [comments,   setComments]   = useState<Record<string, string>>({});
   const [submitting, setSubmitting] = useState(false);
 
   const handleSubmit = async () => {
@@ -181,8 +181,8 @@ function ReviewModal({
         order.id,
         order.items.map(item => ({
           product_id: item.product_id,
-          rating:  ratings[item.product_id] ?? 5,
-          comment: comments[item.product_id] ?? '',
+          rating:     ratings[item.product_id] ?? 5,
+          comment:    comments[item.product_id] ?? '',
         }))
       );
       onClose();
@@ -193,14 +193,8 @@ function ReviewModal({
 
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
-      {/* Backdrop */}
-      <div
-        className="absolute inset-0 bg-black/50 backdrop-blur-sm"
-        onClick={onClose}
-      />
-
-      {/* Modal */}
-      <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] flex flex-col animate-in fade-in zoom-in-95 duration-200">
+      <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} />
+      <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] flex flex-col">
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b bg-gradient-to-r from-cyan-500 to-blue-600 rounded-t-2xl text-white">
           <div className="flex items-center gap-2">
@@ -209,10 +203,7 @@ function ReviewModal({
             </svg>
             <h3 className="text-lg font-bold">Đánh giá sản phẩm</h3>
           </div>
-          <button
-            onClick={onClose}
-            className="w-8 h-8 flex items-center justify-center rounded-full bg-white/20 hover:bg-white/30 transition-colors"
-          >
+          <button onClick={onClose} className="w-8 h-8 flex items-center justify-center rounded-full bg-white/20 hover:bg-white/30 transition-colors">
             <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
               <path d="M1 1l10 10M11 1L1 11"/>
             </svg>
@@ -223,15 +214,10 @@ function ReviewModal({
         <div className="overflow-y-auto flex-1 px-6 py-4 space-y-5">
           {order.items.map(item => (
             <div key={item.id} className="border border-gray-100 rounded-xl p-4 space-y-3">
-              {/* Product info */}
               <div className="flex items-center gap-3">
-                <div className="w-14 h-14 rounded-lg overflow-hidden bg-gray-100 flex-shrink-0 border border-gray-100">
+                <div className="w-14 h-14 rounded-lg overflow-hidden bg-gray-100 flex-shrink-0">
                   {getImg(item, API_BASE_URL)
-                    ? <img
-                        src={getImg(item, API_BASE_URL)!}
-                        alt={item.product?.name}
-                        className="w-full h-full object-cover"
-                      />
+                    ? <img src={getImg(item, API_BASE_URL)!} alt={item.product?.name} className="w-full h-full object-cover" />
                     : <div className="w-full h-full flex items-center justify-center text-xl">🛍️</div>
                   }
                 </div>
@@ -239,8 +225,6 @@ function ReviewModal({
                   {item.product?.name ?? 'Sản phẩm'}
                 </p>
               </div>
-
-              {/* Stars */}
               <div>
                 <p className="text-xs text-gray-500 mb-1.5 font-medium">Chất lượng sản phẩm</p>
                 <StarRating
@@ -248,8 +232,6 @@ function ReviewModal({
                   onChange={v => setRatings(prev => ({ ...prev, [item.product_id]: v }))}
                 />
               </div>
-
-              {/* Comment */}
               <textarea
                 rows={2}
                 value={comments[item.product_id] ?? ''}
@@ -266,17 +248,10 @@ function ReviewModal({
           <button
             onClick={handleSubmit}
             disabled={submitting}
-            className="w-full h-11 rounded-xl font-bold text-white text-sm transition-all active:scale-[0.98] disabled:opacity-70 disabled:cursor-not-allowed"
+            className="w-full h-11 rounded-xl font-bold text-white text-sm disabled:opacity-70"
             style={{ background: 'linear-gradient(135deg,#06b6d4,#2563eb)' }}
           >
-            {submitting ? (
-              <span className="flex items-center justify-center gap-2">
-                <svg className="animate-spin w-4 h-4" viewBox="0 0 24 24" fill="none">
-                  <circle cx="12" cy="12" r="10" stroke="white" strokeWidth="3" strokeDasharray="40" strokeDashoffset="10"/>
-                </svg>
-                Đang gửi…
-              </span>
-            ) : 'Gửi đánh giá'}
+            {submitting ? 'Đang gửi…' : 'Gửi đánh giá'}
           </button>
         </div>
       </div>
@@ -288,39 +263,27 @@ function ReviewModal({
 function StatusBadge({ order }: { order: Order }) {
   const map: Record<string, { label: string; cls: string }> = {
     PENDING:   { label: 'Chờ xác nhận', cls: 'bg-amber-100 text-amber-700' },
-    PICKUP:    { label: 'Chờ lấy hàng', cls: 'bg-blue-100 text-blue-700' },
-    SHIPPING:  { label: 'Đang giao',    cls: 'bg-cyan-100 text-cyan-700' },
-    DELIVERED: { label: 'Đã giao',      cls: 'bg-green-100 text-green-700' },
-    CANCELLED: { label: 'Đã hủy',       cls: 'bg-red-100 text-red-500' },
+    PICKUP:    { label: 'Chờ lấy hàng', cls: 'bg-blue-100 text-blue-700'  },
+    SHIPPING:  { label: 'Đang giao',    cls: 'bg-cyan-100 text-cyan-700'  },
+    DELIVERED: { label: 'Đã giao',      cls: 'bg-green-100 text-green-700'},
+    CANCELLED: { label: 'Đã hủy',       cls: 'bg-red-100 text-red-500'   },
   };
   const s = map[order.order_status] ?? { label: order.order_status, cls: 'bg-gray-100 text-gray-600' };
-  return (
-    <span className={`text-xs font-semibold px-2.5 py-1 rounded-full ${s.cls}`}>
-      {s.label}
-    </span>
-  );
+  return <span className={`text-xs font-semibold px-2.5 py-1 rounded-full ${s.cls}`}>{s.label}</span>;
 }
 
 // ─── Order Card ───────────────────────────────────────────────────────────────
-function OrderCard({
-  order,
-  activeTab,
-  onReview,
-}: {
-  order: Order;
-  activeTab: string;
-  onReview: (order: Order) => void;
-}) {
+function OrderCard({ order, onReview }: { order: Order; onReview: (o: Order) => void }) {
   const navigate = useNavigate();
 
-  // Đơn DELIVERED + PAID + chưa đánh giá → hiện nút Đánh giá
+  // Chưa review → hiện nút Đánh giá
   const canReview =
     order.order_status === 'DELIVERED' &&
     order.payment_status === 'PAID' &&
-    !order.reviewed;
+    !order.is_reviewed;
 
-  // Đơn đã đánh giá → hiện nút Mua lại
-  const isReviewed = order.reviewed === true;
+  // Đã review → hiện nút Mua lại
+  const isReviewed = order.is_reviewed === true;
 
   return (
     <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden hover:shadow-md transition-shadow">
@@ -340,28 +303,21 @@ function OrderCard({
             <div
               key={item.id}
               className="flex items-center gap-4 px-5 py-4 cursor-pointer hover:bg-gray-50/60 transition-colors"
-              onClick={() =>
-                item.product?.id && navigate(`/product/${item.product.id}`)
-              }
+              onClick={() => item.product?.id && navigate(`/product/${item.product.id}`)}
               title="Xem sản phẩm"
             >
-              {/* Image */}
               <div className="w-[68px] h-[68px] rounded-xl overflow-hidden bg-gray-100 flex-shrink-0 border border-gray-100">
                 {img
                   ? <img src={img} alt={item.product?.name} className="w-full h-full object-cover" />
                   : <div className="w-full h-full flex items-center justify-center text-2xl">🛍️</div>
                 }
               </div>
-
-              {/* Info */}
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-semibold text-gray-900 truncate hover:text-cyan-600 transition-colors">
                   {item.product?.name ?? 'Sản phẩm'}
                 </p>
                 <p className="text-xs text-gray-400 mt-0.5">x{item.quantity}</p>
               </div>
-
-              {/* Price */}
               <p className="text-sm font-bold text-gray-800 flex-shrink-0" onClick={e => e.stopPropagation()}>
                 {fmt(Number(item.price_at_buy) * item.quantity)}
               </p>
@@ -372,30 +328,24 @@ function OrderCard({
 
       {/* Footer */}
       <div className="flex items-center justify-between px-5 py-4 border-t border-gray-50">
-        {/* Total */}
         <div className="text-sm">
           <span className="text-gray-400">Tổng thanh toán: </span>
-          <span className="font-extrabold text-red-500 text-base">
-            {fmt(Number(order.total_amount))}
-          </span>
+          <span className="font-extrabold text-red-500 text-base">{fmt(Number(order.total_amount))}</span>
         </div>
 
-        {/* Actions */}
         <div className="flex items-center gap-2 flex-wrap justify-end">
-          {/* Payment status badge */}
+          {/* Payment badge */}
           <span className={`text-xs px-2 py-1 rounded-full font-medium ${
-            order.payment_status === 'PAID'
-              ? 'bg-green-100 text-green-600'
-              : order.payment_status === 'FAILED'
-              ? 'bg-red-100 text-red-500'
-              : 'bg-yellow-100 text-yellow-600'
+            order.payment_status === 'PAID'   ? 'bg-green-100 text-green-600'
+            : order.payment_status === 'FAILED' ? 'bg-red-100 text-red-500'
+            : 'bg-yellow-100 text-yellow-600'
           }`}>
             {order.payment_status === 'PAID'   ? '✓ Đã thanh toán'
             : order.payment_status === 'FAILED' ? '✗ Thất bại'
             : '⏳ Chưa thanh toán'}
           </span>
 
-          {/* ── Nút Đánh giá (chỉ khi chưa reviewed) ── */}
+          {/* Nút Đánh giá */}
           {canReview && (
             <button
               onClick={() => onReview(order)}
@@ -405,11 +355,10 @@ function OrderCard({
             </button>
           )}
 
-          {/* ── Nút Mua lại (chỉ khi đã reviewed) ── */}
+          {/* Nút Mua lại */}
           {isReviewed && (
             <button
               onClick={() => {
-                // Lấy product_id của item đầu tiên → navigate về trang chi tiết sản phẩm
                 const firstProductId = order.items[0]?.product?.id;
                 if (firstProductId) navigate(`/product/${firstProductId}`);
               }}
@@ -436,7 +385,7 @@ export default function MyOrdersPage() {
   const [reviewOrder, setReviewOrder] = useState<Order | null>(null);
   const [searchValue, setSearchValue] = useState('');
 
-  // ── Fetch orders ──
+  // ── Fetch ──
   const fetchOrders = useCallback(async () => {
     if (!token) return;
     setLoading(true);
@@ -446,6 +395,7 @@ export default function MyOrdersPage() {
       });
       if (!res.ok) throw new Error();
       const json = await res.json();
+      // Backend trả về mảng plain object (đã qua attachReviewStatus)
       const list: Order[] = json.data ?? json ?? [];
       setOrders(list);
     } catch {
@@ -457,17 +407,15 @@ export default function MyOrdersPage() {
 
   useEffect(() => { void fetchOrders(); }, [fetchOrders]);
 
-  // ── Tab filter ──
   const tab      = TABS.find(t => t.key === activeTab) ?? TABS[0];
   const filtered = orders.filter(tab.match);
   const counts   = Object.fromEntries(TABS.map(t => [t.key, orders.filter(t.match).length]));
 
-  // ── Submit review ──
+  // ── Submit review → fetch lại để is_reviewed cập nhật từ DB ──
   const handleReviewSubmit = async (
     orderId: string,
     items: { product_id: string; rating: number; comment: string }[]
   ) => {
-    // Gửi từng review lên backend
     for (const item of items) {
       await fetch(`${API_BASE_URL}/reviews`, {
         method: 'POST',
@@ -484,10 +432,8 @@ export default function MyOrdersPage() {
       });
     }
 
-    // Mark reviewed = true trong state
-    setOrders(prev =>
-      prev.map(o => o.id === orderId ? { ...o, reviewed: true } : o)
-    );
+    // Fetch lại từ server để is_reviewed cập nhật chính xác
+    await fetchOrders();
 
     // Chuyển sang tab "Đã đánh giá"
     setSearchParams({ tab: 'reviewed' });
@@ -505,7 +451,7 @@ export default function MyOrdersPage() {
         }
       />
 
-      <main className="container mx-auto px-4 py-6 max-w-3xl">
+      <main className="mx-auto w-full max-w-screen-2xl px-4 py-6">
         {/* Title */}
         <div className="flex items-center gap-3 mb-5">
           <button
@@ -520,7 +466,7 @@ export default function MyOrdersPage() {
           <h1 className="text-xl font-bold text-gray-900">Đơn mua của tôi</h1>
         </div>
 
-        {/* ── Tabs ── */}
+        {/* Tabs */}
         <div className="bg-white rounded-2xl border border-gray-100 shadow-sm mb-5 overflow-hidden">
           <div className="flex overflow-x-auto scrollbar-none">
             {TABS.map(t => {
@@ -533,12 +479,9 @@ export default function MyOrdersPage() {
                     isActive ? `${t.color} ${t.bg}` : 'text-gray-400 hover:bg-gray-50'
                   }`}
                 >
-                  {/* Active underline */}
                   {isActive && (
                     <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-current rounded-t-full" />
                   )}
-
-                  {/* Icon + badge */}
                   <div className="relative">
                     {t.icon}
                     {counts[t.key] > 0 && (
@@ -547,7 +490,6 @@ export default function MyOrdersPage() {
                       </span>
                     )}
                   </div>
-
                   <span className={`text-[10px] font-semibold leading-tight text-center ${isActive ? '' : 'text-gray-400'}`}>
                     {t.label}
                   </span>
@@ -557,13 +499,10 @@ export default function MyOrdersPage() {
           </div>
         </div>
 
-        {/* ── Content ── */}
+        {/* Content */}
         {loading ? (
           <div className="flex flex-col items-center justify-center h-52 gap-4">
-            <div
-              className="w-10 h-10 rounded-full border-[3px] border-gray-100 animate-spin"
-              style={{ borderTopColor: '#06b6d4' }}
-            />
+            <div className="w-10 h-10 rounded-full border-[3px] border-gray-100 animate-spin" style={{ borderTopColor: '#06b6d4' }} />
             <p className="text-sm text-gray-400">Đang tải đơn hàng…</p>
           </div>
         ) : filtered.length === 0 ? (
@@ -573,13 +512,11 @@ export default function MyOrdersPage() {
             </div>
             <div className="text-center">
               <p className="font-semibold text-gray-700">Chưa có đơn hàng</p>
-              <p className="text-sm text-gray-400 mt-1">
-                Không có đơn nào ở trạng thái "{tab.label}"
-              </p>
+              <p className="text-sm text-gray-400 mt-1">Không có đơn nào ở trạng thái "{tab.label}"</p>
             </div>
             <button
               onClick={() => navigate('/')}
-              className="px-6 py-2.5 rounded-full text-white text-sm font-semibold bg-gradient-to-r from-cyan-500 to-blue-600 hover:opacity-90 transition-opacity shadow-md shadow-cyan-200"
+              className="px-6 py-2.5 rounded-full text-white text-sm font-semibold bg-gradient-to-r from-cyan-500 to-blue-600 hover:opacity-90 transition-opacity"
             >
               Tiếp tục mua sắm
             </button>
@@ -587,18 +524,12 @@ export default function MyOrdersPage() {
         ) : (
           <div className="space-y-3">
             {filtered.map(order => (
-              <OrderCard
-                key={order.id}
-                order={order}
-                activeTab={activeTab}
-                onReview={setReviewOrder}
-              />
+              <OrderCard key={order.id} order={order} onReview={setReviewOrder} />
             ))}
           </div>
         )}
       </main>
 
-      {/* ── Review Modal ── */}
       {reviewOrder && (
         <ReviewModal
           order={reviewOrder}

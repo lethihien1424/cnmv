@@ -1,3 +1,4 @@
+//D:\CNM_cu\CongNgheMoi\Backend\routes\ghn.route.js
 const express = require("express");
 const router = express.Router();
 const ghnService = require("../services/ghn.service");
