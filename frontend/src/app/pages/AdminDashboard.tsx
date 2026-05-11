@@ -289,11 +289,11 @@ export default function AdminDashboard() {
             <button
               onClick={() => setActiveTab('users')}
               className={`px-6 py-3 font-medium transition-colors relative ${activeTab === 'users'
-                  ? 'text-cyan-600'
-                  : 'text-gray-600 hover:text-gray-900'
+                ? 'text-cyan-600'
+                : 'text-gray-600 hover:text-gray-900'
                 }`}
             >
-              {/* <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2">
                 <Users className="size-4" />
                 Quản lý người dùng
               </div>
@@ -303,12 +303,11 @@ export default function AdminDashboard() {
             </button>
             <button
               onClick={() => setActiveTab('reports')}
-              className={`px-6 py-3 font-medium transition-colors relative ${
-                activeTab === 'reports'
-                  ? 'text-cyan-600'
-                  : 'text-gray-600 hover:text-gray-900'
-              }`}
-            > */}
+              className={`px-6 py-3 font-medium transition-colors relative ${activeTab === 'reports'
+                ? 'text-cyan-600'
+                : 'text-gray-600 hover:text-gray-900'
+                }`}
+            >
               <div className="flex items-center gap-2">
                 <BarChart3 className="size-4" />
                 Báo cáo & Thống kê

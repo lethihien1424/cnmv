@@ -163,3 +163,29 @@ export async function scanBusinessLicense(
   );
 }
 
+export async function deleteDashboardUser(userId: string, token?: string | null): Promise<{ message: string }> {
+  return apiRequest<{ message: string }>(`/user/${userId}`, { method: 'DELETE' }, token ?? localStorage.getItem('token'));
+}
+
+export async function updateDashboardUser(userId: string, data: Partial<AdminUserDetail>, token?: string | null): Promise<AdminUserDetail> {
+  return apiRequest<AdminUserDetail>(
+    `/user/${userId}`,
+    {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    },
+    token ?? localStorage.getItem('token'),
+  );
+}
+
+export async function createDashboardUser(data: Partial<AdminUserDetail>, token?: string | null): Promise<AdminUserDetail> {
+  return apiRequest<AdminUserDetail>(
+    '/user',
+    {
+      method: 'POST',
+      body: JSON.stringify(data),
+    },
+    token ?? localStorage.getItem('token'),
+  );
+}
+
