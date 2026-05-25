@@ -1,15 +1,20 @@
+// frontend/src/app/services/orderService.ts
 import { API_BASE_URL } from "./api";
 
-export type OrderItem = {
+export type OrderDetail = {
   id: string;
   product_id: string;
   quantity: number;
   price_at_buy: number;
+  size?: string | null;
+  color?: string | null;
   product?: {
     id: string;
     name: string;
     images?: string[];
+    is_bulky?: boolean; // ← thêm
   };
+  
 };
 
 export type Order = {
@@ -22,9 +27,16 @@ export type Order = {
   payment_status: string;
   order_status: string;
   shipping_address: string;
-  created_at: string;
-  updated_at: string;
-  items: OrderItem[];
+  distance_km?: number;
+estimated_delivery_time?: string;
+  // Sequelize underscored:true → toJSON() trả camelCase
+  createdAt?: string;
+  updatedAt?: string;
+  // Fallback snake_case
+  created_at?: string;
+  updated_at?: string;
+  is_reviewed?: boolean;
+  items: OrderDetail[];
 };
 
 const getToken = () => localStorage.getItem("token");

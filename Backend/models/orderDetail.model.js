@@ -1,9 +1,8 @@
-//D:\CongNgheMoi-hien\CongNgheMoi\Backend\models\order_item.model.js
 const { DataTypes } = require("sequelize");
 
 module.exports = (sequelize) => {
-  const OrderItem = sequelize.define(
-    "OrderItem",
+  const OrderDetail = sequelize.define(
+    "OrderDetail",
     {
       id: {
         type: DataTypes.UUID,
@@ -26,13 +25,21 @@ module.exports = (sequelize) => {
         type: DataTypes.BIGINT,
         allowNull: false,
       },
+      size: {
+        type: DataTypes.STRING,
+        allowNull: true,
+      },
+      color: {
+        type: DataTypes.STRING,
+        allowNull: true,
+      },
     },
     {
-      tableName: "order_items",
+      tableName: "order_details",
       timestamps: true,
       underscored: true,
     },
   );
 
-  return OrderItem;
+  return OrderDetail;
 };

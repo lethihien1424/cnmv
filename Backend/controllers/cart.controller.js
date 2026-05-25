@@ -7,10 +7,10 @@ const getUserId = (req) => {
 
 const addToCart = async (req, res) => {
   try {
-    const { product_id, quantity } = req.body;
+    const { product_id, quantity, size, color } = req.body;
     const userId = getUserId(req);
 
-    await cartService.addToCart(userId, product_id, quantity);
+    await cartService.addToCart(userId, product_id, quantity, size, color);
 
     res.json({ message: "Added to cart" });
   } catch (err) {
@@ -20,10 +20,10 @@ const addToCart = async (req, res) => {
 
 const updateQuantity = async (req, res) => {
   try {
-    const { product_id, quantity } = req.body;
+    const { product_id, quantity, size, color } = req.body;
     const userId = getUserId(req);
 
-    await cartService.updateQuantity(userId, product_id, quantity);
+    await cartService.updateQuantity(userId, product_id, quantity, size, color);
 
     res.json({ message: "Updated quantity" });
   } catch (err) {

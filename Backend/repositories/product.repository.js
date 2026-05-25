@@ -2,7 +2,22 @@ const { Op } = require("sequelize");
 const { Product, Store, User, Category } = require("../models");
 
 const createProduct = async (payload) => {
-  return Product.create(payload);
+  return await Product.create({
+    name: payload.name,
+    price: payload.price,
+    stock_quantity: payload.stock_quantity,
+    condition: payload.condition,
+    store_id: payload.store_id,
+    category_id: payload.category_id,
+    description: payload.description,
+    images: payload.images,
+    // ÁNH XẠ CÁC CỘT MỚI TỪ PAYLOAD
+    color: payload.color, // Đảm bảo lấy từ payload
+    size: payload.size, // Đảm bảo lấy từ payload
+    type: payload.type, // Đảm bảo lấy từ payload
+    is_bulky: payload.is_bulky, // Đảm bảo lấy từ payload
+    variants: payload.variants, // Đảm bảo lấy từ payload (kiểu JSON)
+  });
 };
 
 const findProductById = async (id) => {

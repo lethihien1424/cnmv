@@ -18,7 +18,7 @@ import {
 } from '../services/adminStoreService';
 import { toast } from 'sonner';
 import axios from 'axios';
-import { Store as StoreIcon, Check, X, Clock, Ban, Building2, FileText, Loader2, Eye, Zap, Bot, ScanLine, AlertTriangle, CheckCircle2, XCircle } from 'lucide-react';
+import { Store as StoreIcon, Check, X, Clock, Ban, Building2, FileText, Loader2, Eye, Zap, Bot, ScanLine, AlertTriangle, CheckCircle2, XCircle, ZoomIn } from 'lucide-react';
 import { format } from 'date-fns';
 
 const API_URL = 'http://localhost:5000/api'; // Hãy đảm bảo URL này đúng với Backend của bạn
@@ -38,6 +38,13 @@ export default function StoreManagementPage() {
     result: OcrScanResult | null;
     error: string | null;
   }>({ isScanning: false, result: null, error: null });
+
+  // ── State Modal xem ảnh GPKD (có nút thoát) ─────────────────────────────────
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
+
+  // ── State Dialog Từ chối có Lý do ───────────────────────────────────────────────
+  const [rejectTarget, setRejectTarget] = useState<string | null>(null); // storeId đang bị từ chối
+  const [rejectReason, setRejectReason] = useState('');
 
   // Trạng thái cho cửa sổ Flash Sale
   const [flashSaleModal, setFlashSaleModal] = useState<{
@@ -75,11 +82,16 @@ export default function StoreManagementPage() {
     }
   };
 
-  const applyStoreStatus = async (storeId: string, status: AdminStoreStatus, successMessage: string) => {
+  const applyStoreStatus = async (
+    storeId: string,
+    status: AdminStoreStatus,
+    successMessage: string,
+    reason?: string,
+  ) => {
     setIsUpdating(storeId);
 
     try {
-      await updateAdminStoreStatus(storeId, status, token);
+      await updateAdminStoreStatus(storeId, status, token, reason);
       setStores((previous) => {
         const existing = previous.find((item) => item.id === storeId);
 
@@ -102,11 +114,30 @@ export default function StoreManagementPage() {
   };
 
   const handleApprove = (storeId: string) => {
-    void applyStoreStatus(storeId, 'APPROVED', 'Cửa hàng đã được duyệt');
+    void applyStoreStatus(storeId, 'APPROVED', 'Cửa hàng đã được duyệt ✅');
   };
 
+  /** Mở Dialog nhập lý do từ chối thay vì từ chối ngay */
   const handleReject = (storeId: string) => {
-    void applyStoreStatus(storeId, 'REJECTED', 'Cửa hàng đã bị từ chối');
+    setRejectTarget(storeId);
+    setRejectReason('');
+  };
+
+  /** Xác nhận từ chối sau khi Admin đã nhập lý do */
+  const handleConfirmReject = async () => {
+    if (!rejectTarget) return;
+    if (!rejectReason.trim()) {
+      toast.error('Vui lòng nhập lý do từ chối');
+      return;
+    }
+    await applyStoreStatus(
+      rejectTarget,
+      'REJECTED',
+      'Cửa hàng đã bị từ chối và thông báo đã được gửi đến chủ shop',
+      rejectReason.trim(),
+    );
+    setRejectTarget(null);
+    setRejectReason('');
   };
 
   const handleDeactivate = (storeId: string) => {
@@ -332,9 +363,38 @@ export default function StoreManagementPage() {
                           )}
                         </TableCell>
                         <TableCell>
-                          <div className="flex items-center gap-1 text-sm">
-                            <FileText className="size-3" />
-                            {store.business_license || 'N/A'}
+                          <div className="space-y-1">
+                            {/* Thumbnail ảnh GPKD — click để mở modal */}
+                            {store.business_license_image_url ? (
+                              <button
+                                onClick={() => setImagePreview(store.business_license_image_url)}
+                                title="Click để xem ảnh GPKD"
+                                className="block relative group"
+                              >
+                                <img
+                                  src={store.business_license_image_url}
+                                  alt="GPKD"
+                                  className="w-16 h-16 object-cover rounded border border-gray-200 group-hover:border-violet-400 group-hover:shadow-md transition-all"
+                                  onError={(e) => {
+                                    (e.target as HTMLImageElement).style.display = 'none';
+                                  }}
+                                />
+                                <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 rounded flex items-center justify-center transition-all">
+                                  <ZoomIn className="size-4 text-white opacity-0 group-hover:opacity-100" />
+                                </div>
+                              </button>
+                            ) : (
+                              <span className="inline-flex items-center gap-1 text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded px-2 py-1">
+                                Chưa có ảnh
+                              </span>
+                            )}
+                            {/* Mã số GPKD text */}
+                            {store.business_license && (
+                              <div className="flex items-center gap-1 text-xs text-gray-500">
+                                <FileText className="size-3" />
+                                <span className="font-mono">{store.business_license}</span>
+                              </div>
+                            )}
                           </div>
                         </TableCell>
                         <TableCell>{getStatusBadge(store.status)}</TableCell>
@@ -438,27 +498,73 @@ export default function StoreManagementPage() {
                   </div>
                 </div>
 
-                {/* ── AI OCR PANEL ───────────────────────────────────────────── */}
-                {selectedStore.store_type === 'B2C' && (
-                  <div className="rounded-xl border-2 border-violet-200 bg-gradient-to-br from-violet-50 to-purple-50 p-5 space-y-4">
-                    {/* Header Panel */}
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <div className="size-9 bg-violet-600 rounded-lg flex items-center justify-center shadow-md">
-                          <Bot className="size-5 text-white" />
+                    {/* ── ẢNH GPKD — Hiển thị ảnh để Admin đối soát ── */}
+                    {selectedStore.store_type === 'B2C' && (
+                      <div className="rounded-xl border border-gray-200 bg-gray-50 p-4 space-y-3">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <p className="font-semibold text-sm text-gray-800">Ảnh Giấy Phép Kinh Doanh</p>
+                            {selectedStore.business_license && (
+                              <p className="text-xs text-gray-500 font-mono mt-0.5">Mã số: {selectedStore.business_license}</p>
+                            )}
+                          </div>
+                          {selectedStore.business_license_image_url && (
+                            <button
+                              onClick={() => setImagePreview(selectedStore.business_license_image_url)}
+                              className="inline-flex items-center gap-1.5 text-xs text-violet-600 hover:text-violet-800 border border-violet-200 hover:border-violet-400 bg-white rounded-lg px-3 py-1.5 transition-all"
+                            >
+                              <Eye className="size-3.5" />
+                              Xem ảnh đầy đủ
+                            </button>
+                          )}
                         </div>
-                        <div>
-                          <p className="font-semibold text-violet-900">AI Duyệt Hồ Sơ Tự Động</p>
-                          <p className="text-xs text-violet-600">Powered by Tesseract.js OCR</p>
-                        </div>
+
+                        {selectedStore.business_license_image_url ? (
+                          <button
+                            onClick={() => setImagePreview(selectedStore.business_license_image_url)}
+                            className="w-full block"
+                          >
+                            <img
+                              src={selectedStore.business_license_image_url}
+                              alt="Ảnh GPKD"
+                              className="w-full max-h-72 object-contain rounded-lg border border-gray-200 bg-white hover:border-violet-400 hover:shadow-lg transition-all cursor-zoom-in"
+                              onError={(e) => {
+                                const target = e.target as HTMLImageElement;
+                                target.style.display = 'none';
+                                target.nextElementSibling?.classList.remove('hidden');
+                              }}
+                            />
+                            <p className="hidden text-xs text-red-500 mt-1">Không tải được ảnh (lỗi đường dẫn)</p>
+                          </button>
+                        ) : (
+                          <div className="flex items-center justify-center h-24 rounded-lg border-2 border-dashed border-amber-300 bg-amber-50">
+                            <p className="text-sm text-amber-600">⚠️ Cửa hàng chưa tải lên ảnh GPKD</p>
+                          </div>
+                        )}
                       </div>
-                      <Button
-                        id={`btn-ocr-scan-${selectedStore.id}`}
-                        size="sm"
-                        onClick={() => { void handleScanLicense(); }}
-                        disabled={ocrState.isScanning || !selectedStore.business_license}
-                        className="bg-violet-600 hover:bg-violet-700 text-white gap-2 shadow-md transition-all"
-                      >
+                    )}
+
+                {/* ── AI OCR PANEL ───────────────────────────────────────────── */}
+                    {selectedStore.store_type === 'B2C' && (
+                      <div className="rounded-xl border-2 border-violet-200 bg-gradient-to-br from-violet-50 to-purple-50 p-5 space-y-4">
+                        {/* Header Panel */}
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <div className="size-9 bg-violet-600 rounded-lg flex items-center justify-center shadow-md">
+                              <Bot className="size-5 text-white" />
+                            </div>
+                            <div>
+                              <p className="font-semibold text-violet-900">AI Duyệt Hồ Sơ Tự Động</p>
+                              <p className="text-xs text-violet-600">Powered by Tesseract.js OCR</p>
+                            </div>
+                          </div>
+                          <Button
+                            id={`btn-ocr-scan-${selectedStore.id}`}
+                            size="sm"
+                            onClick={() => { void handleScanLicense(); }}
+                            disabled={ocrState.isScanning || !selectedStore.business_license_image_url}
+                            className="bg-violet-600 hover:bg-violet-700 text-white gap-2 shadow-md transition-all"
+                          >
                         {ocrState.isScanning ? (
                           <><Loader2 className="size-4 animate-spin" />Đang quét...</>
                         ) : (
@@ -511,6 +617,32 @@ export default function StoreManagementPage() {
 
                       return (
                         <div className="space-y-4 animate-in fade-in duration-300">
+                          {/* ── Cảnh báo dấu mộc đỏ ── */}
+                          {result.has_red_stamp === false ? (
+                            <div className="flex items-start gap-3 rounded-lg border border-red-300 bg-red-50 px-4 py-3">
+                              <span className="text-2xl">🔴</span>
+                              <div>
+                                <p className="font-bold text-red-800 text-sm">⚠️ Cảnh báo: Không phát hiện dấu mộc đỏ!</p>
+                                <p className="text-xs text-red-600 mt-0.5">
+                                  Ảnh GPKD này thiếu dấu mộc tròn đỏ của cơ quan nhà nước. Đây có thể là ảnh giả mạo hoặc chưa đóng dấu.
+                                </p>
+                                {result.redStampDebug && (
+                                  <p className="text-xs text-red-400 mt-1 font-mono">{result.redStampDebug}</p>
+                                )}
+                              </div>
+                            </div>
+                          ) : result.has_red_stamp === true ? (
+                            <div className="flex items-center gap-2 rounded-lg border border-green-300 bg-green-50 px-4 py-2.5">
+                              <span className="text-lg">🟢</span>
+                              <div>
+                                <p className="font-semibold text-green-800 text-sm">Phát hiện dấu mộc đỏ hợp lệ</p>
+                                {result.redStampDebug && (
+                                  <p className="text-xs text-green-600 font-mono">{result.redStampDebug}</p>
+                                )}
+                              </div>
+                            </div>
+                          ) : null}
+
                           {/* Điểm khớp tổng hợp */}
                           <div className={`flex items-center gap-3 rounded-lg border px-4 py-3 ${scoreColor}`}>
                             <ScoreIcon className="size-5 shrink-0" />
@@ -539,7 +671,24 @@ export default function StoreManagementPage() {
                                 </tr>
                               </thead>
                               <tbody className="divide-y">
+                                {/* Hàng Dấu mộc đỏ */}
+                                <tr className="hover:bg-gray-50/50">
+                                  <td className="px-4 py-3 font-medium">Dấu mộc đỏ</td>
+                                  <td className="px-4 py-3 text-gray-700">Bắt buộc</td>
+                                  <td className="px-4 py-3 text-gray-700 text-xs">
+                                    {result.redStampDebug || 'Chưa phân tích'}
+                                  </td>
+                                  <td className="px-4 py-3 text-center">
+                                    {result.has_red_stamp === true
+                                      ? <CheckCircle2 className="size-5 text-green-500 mx-auto" />
+                                      : result.has_red_stamp === false
+                                      ? <XCircle className="size-5 text-red-500 mx-auto" />
+                                      : <span className="text-xs text-gray-400">N/A</span>}
+                                  </td>
+                                </tr>
+
                                 {/* Hàng MST */}
+
                                 <tr className="hover:bg-gray-50/50">
                                   <td className="px-4 py-3 font-medium">Mã số thuế</td>
                                   <td className="px-4 py-3 text-gray-700 font-mono">
@@ -586,38 +735,56 @@ export default function StoreManagementPage() {
                             </pre>
                           </details>
 
-                          {/* Nút Duyệt hồ sơ — chỉ enable khi isMatch = true */}
-                          {selectedStore.status === 'PENDING' && (
-                            <div className="pt-2 border-t flex items-center gap-3">
-                              {result.isMatch ? (
-                                <Button
-                                  id={`btn-ai-approve-${selectedStore.id}`}
-                                  className="bg-green-600 hover:bg-green-700 text-white gap-2 shadow-sm"
-                                  onClick={() => handleApprove(selectedStore.id)}
-                                  disabled={isUpdating === selectedStore.id}
-                                >
-                                  {isUpdating === selectedStore.id
-                                    ? <Loader2 className="size-4 animate-spin" />
-                                    : <CheckCircle2 className="size-4" />}
-                                  Duyệt hồ sơ ngay
-                                </Button>
-                              ) : (
-                                <Button
-                                  disabled
-                                  className="gap-2 opacity-50 cursor-not-allowed"
-                                  title="Cần độ khớp ≥ 90% để duyệt tự động"
-                                >
-                                  <CheckCircle2 className="size-4" />
-                                  Duyệt hồ sơ (cần độ khớp ≥ 90%)
-                                </Button>
-                              )}
-                              <p className="text-xs text-gray-500">
-                                {result.isMatch
-                                  ? 'AI xác nhận hồ sơ hợp lệ.'
-                                  : `Độ khớp hiện tại: ${scorePercent}% — Cần xem xét thủ công.`}
-                              </p>
-                            </div>
-                          )}
+                          {/* Nút Duyệt hồ sơ — bắt buộc CÓ mộc đỏ + khớp ≥ 90% */}
+                          {selectedStore.status === 'PENDING' && (() => {
+                            const hasRedStamp = result.has_red_stamp !== false; // true hoặc undefined = ok
+                            const canApprove = result.isMatch && hasRedStamp;
+                            const noStamp = result.has_red_stamp === false;
+
+                            return (
+                              <div className="pt-2 border-t space-y-2">
+                                {/* Cảnh báo đỏ đậm nếu thiếu mộc */}
+                                {noStamp && (
+                                  <div className="flex items-center gap-2 rounded-lg border-2 border-red-500 bg-red-100 px-4 py-2.5 animate-pulse">
+                                    <span className="text-xl">🚫</span>
+                                    <div>
+                                      <p className="font-bold text-red-900 text-sm">KHÔNG THỂ DUYỆT — THIẾU DẤU MỘC ĐỎ</p>
+                                      <p className="text-xs text-red-700">Admin phải từ chối hồ sơ này. Ảnh GPKD chưa có dấu mộc tròn đỏ của cơ quan nhà nước.</p>
+                                    </div>
+                                  </div>
+                                )}
+
+                                <div className="flex items-center gap-3">
+                                  <Button
+                                    id={`btn-ai-approve-${selectedStore.id}`}
+                                    className={canApprove
+                                      ? "bg-green-600 hover:bg-green-700 text-white gap-2 shadow-sm"
+                                      : "gap-2 opacity-40 cursor-not-allowed"}
+                                    onClick={() => canApprove && handleApprove(selectedStore.id)}
+                                    disabled={!canApprove || isUpdating === selectedStore.id}
+                                    title={noStamp
+                                      ? "Không thể duyệt: Ảnh thiếu dấu mộc đỏ"
+                                      : !result.isMatch
+                                      ? "Không thể duyệt: Độ khớp thấp hơn 90%"
+                                      : "Duyệt hồ sơ ngay"}
+                                  >
+                                    {isUpdating === selectedStore.id
+                                      ? <Loader2 className="size-4 animate-spin" />
+                                      : <CheckCircle2 className="size-4" />}
+                                    {canApprove ? 'Duyệt hồ sơ ngay' : noStamp ? 'Bị chặn — Thiếu mộc đỏ' : 'Duyệt hồ sơ (cần khớp ≥ 90%)'}
+                                  </Button>
+                                  <p className="text-xs text-gray-500 flex-1">
+                                    {canApprove
+                                      ? '✅ AI xác nhận đủ điều kiện duyệt.'
+                                      : noStamp
+                                      ? '🔴 Hồ sơ bị từ chối tự động: không phát hiện dấu mộc đỏ.'
+                                      : `⚠️ Độ khớp: ${scorePercent}% — Cần xem xét thủ công.`}
+                                  </p>
+                                </div>
+                              </div>
+                            );
+                          })()}
+
                         </div>
                       );
                     })()}
@@ -738,6 +905,157 @@ export default function StoreManagementPage() {
                 className="bg-red-500 hover:bg-red-600 text-white"
               >
                 {flashSaleModal.loading ? "Đang lưu..." : "Lưu cài đặt"}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── MODAL XEM ẢNH GPKD — Có nút đóng rõ ràng ── */}
+      {imagePreview && (
+        <div
+          id="modal-gpkd-preview"
+          className="fixed inset-0 z-[200] flex items-center justify-center bg-black/70 backdrop-blur-sm p-4"
+          onClick={() => setImagePreview(null)}
+        >
+          <div
+            className="relative bg-white rounded-2xl shadow-2xl max-w-3xl w-full overflow-hidden"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header modal */}
+            <div className="flex items-center justify-between px-5 py-4 border-b">
+              <div className="flex items-center gap-2">
+                <FileText className="size-5 text-violet-600" />
+                <h2 className="font-semibold text-gray-900">Kiểm tra Giấy Phép Kinh Doanh</h2>
+              </div>
+              <button
+                id="btn-close-gpkd-modal"
+                onClick={() => setImagePreview(null)}
+                className="size-8 flex items-center justify-center rounded-full hover:bg-gray-100 transition-colors text-gray-500 hover:text-gray-900"
+                title="Đóng (Esc)"
+              >
+                <X className="size-5" />
+              </button>
+            </div>
+
+            {/* Ảnh */}
+            <div className="p-4 bg-gray-50">
+              <img
+                src={imagePreview}
+                alt="Ảnh GPKD"
+                className="w-full max-h-[60vh] object-contain rounded-lg"
+                onError={(e) => {
+                  const t = e.target as HTMLImageElement;
+                  t.src = '';
+                  t.alt = 'Không tải được ảnh';
+                }}
+              />
+            </div>
+
+            {/* Footer modal */}
+            <div className="flex items-center justify-between px-5 py-3 border-t bg-white">
+              <p className="text-xs text-gray-400">Click ra ngoài hoặc nhấn nút Đóng để thoát</p>
+              <Button
+                id="btn-close-gpkd-modal-footer"
+                variant="outline"
+                onClick={() => setImagePreview(null)}
+                className="gap-2"
+              >
+                <X className="size-4" />
+                Đóng
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── DIALOG TỪ CHỐI CÓ LÝ DO ── */}
+      {rejectTarget && (
+        <div
+          className="fixed inset-0 z-[200] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
+          onClick={() => { setRejectTarget(null); setRejectReason(''); }}
+        >
+          <div
+            className="relative bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div className="flex items-center justify-between px-6 py-4 border-b bg-red-50">
+              <div className="flex items-center gap-2">
+                <span className="text-xl">🚫</span>
+                <h2 className="font-bold text-red-900">Từ chối cửa hàng</h2>
+              </div>
+              <button
+                id="btn-close-reject-dialog"
+                onClick={() => { setRejectTarget(null); setRejectReason(''); }}
+                className="size-8 flex items-center justify-center rounded-full hover:bg-red-100 text-red-400 hover:text-red-700 transition-colors"
+              >
+                <X className="size-4" />
+              </button>
+            </div>
+
+            {/* Body */}
+            <div className="px-6 py-5 space-y-4">
+              <p className="text-sm text-gray-600">
+                Nhập lý do từ chối rõ ràng để chủ shop có thể sửa hồ sơ và đăng ký lại.
+              </p>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                  Lý do từ chối <span className="text-red-500">*</span>
+                </label>
+                <textarea
+                  id="textarea-reject-reason"
+                  rows={4}
+                  placeholder="Ví dụ: Ảnh giấy phép kinh doanh mờ, không rõ dấu mộc đỏ. Vui lòng chụp lại ảnh rõ nét..."
+                  value={rejectReason}
+                  onChange={(e) => setRejectReason(e.target.value)}
+                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-400 resize-none"
+                  autoFocus
+                />
+                <p className="text-xs text-gray-400 mt-1">{rejectReason.length}/500 ký tự</p>
+              </div>
+
+              {/* Quick reason buttons */}
+              <div className="space-y-1.5">
+                <p className="text-xs text-gray-500 font-medium">Lý do thường gặp:</p>
+                <div className="flex flex-wrap gap-2">
+                  {[
+                    'Ảnh GPKD mờ, không rõ dấu mộc đỏ',
+                    'Thông tin trên GPKD không khớp với đăng ký',
+                    'Mã số thuế không hợp lệ',
+                    'Thiếu giấy tờ pháp lý',
+                  ].map((suggestion) => (
+                    <button
+                      key={suggestion}
+                      type="button"
+                      onClick={() => setRejectReason(suggestion)}
+                      className="text-xs px-2.5 py-1 rounded-full border border-red-200 bg-red-50 text-red-700 hover:bg-red-100 transition-colors"
+                    >
+                      {suggestion}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="flex items-center justify-end gap-3 px-6 py-4 border-t bg-gray-50">
+              <Button
+                variant="outline"
+                onClick={() => { setRejectTarget(null); setRejectReason(''); }}
+              >
+                Hủy
+              </Button>
+              <Button
+                id="btn-confirm-reject"
+                onClick={() => { void handleConfirmReject(); }}
+                disabled={!rejectReason.trim() || isUpdating === rejectTarget}
+                className="bg-red-600 hover:bg-red-700 text-white gap-2"
+              >
+                {isUpdating === rejectTarget
+                  ? <><span className="size-4 border-2 border-white border-t-transparent rounded-full animate-spin inline-block" />Đang gửi...</>
+                  : <><X className="size-4" />Xác nhận từ chối</>
+                }
               </Button>
             </div>
           </div>

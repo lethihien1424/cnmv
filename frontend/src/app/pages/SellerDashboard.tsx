@@ -9,7 +9,23 @@ import { Separator } from '../components/ui/separator';
 import ChatBox from '../components/ChatBox';
 import NotificationBell from '../components/NotificationBell';
 import { toast } from 'sonner'; // Nhớ cài thư viện toast nếu chưa có
-import { Input } from '../components/ui/input'; // Import Input UI
+
+import {
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  Tooltip,
+  PieChart,
+  Pie,
+  Cell,
+  ResponsiveContainer,
+} from "recharts";
+import { Input } from '../components/ui/input';
+// IMPORT TRANG CÀI ĐẶT VÀO ĐÂY
+import StoreSettingsPage from './StoreSettingsPage';// Import Input UI
+import StoreOrdersPage from './StoreOrdersPage';
+import { dashboardAPI } from '../services/dashboardService';
 import {
   buildDescriptionWithVariants,
   getCategories,
@@ -31,6 +47,7 @@ import {
   type SellerReportPeriod,
 } from '../services/sellerReportService';
 import { orderAPI, type Order } from '../services/orderService';
+import { getAbsoluteImageUrl } from '../services/api';
 import {
   Home,
   Package,
@@ -72,6 +89,10 @@ interface StoreConversation {
 export default function SellerDashboard() {
   const navigate = useNavigate();
   const { user, logout, token } = useAuth();
+  const handleLogout = () => {
+  logout();
+  navigate('/login');
+};
   const [activeTab, setActiveTab] = useState<DashboardTab>('overview');
   const [products, setProducts] = useState<Product[]>([]);
   const [productsLoading, setProductsLoading] = useState(false);
@@ -101,7 +122,12 @@ export default function SellerDashboard() {
   const inboxSocketRef = useRef<Socket | null>(null);
   // State cho AI Moderation - đánh dấu khi backend trả về lỗi kiểm duyệt
   const [isModerationError, setIsModerationError] = useState(false);
-
+  const [overview, setOverview] = useState<any>(null);
+  const [recentOrders, setRecentOrders] =
+  useState<Order[]>([]);
+  
+const [selectedOrderDetail, setSelectedOrderDetail] =
+  useState<Order | null>(null);
   // STATE CHO MODAL FLASH SALE
   const [flashSaleModal, setFlashSaleModal] = useState<{
     isOpen: boolean;
@@ -118,9 +144,7 @@ export default function SellerDashboard() {
     stock: '',
     loading: false,
   });
-  const [orders, setOrders] = useState<Order[]>([]);
-  const [ordersLoading, setOrdersLoading] = useState(false);
-  const [orderSearchTerm, setOrderSearchTerm] = useState('');
+  
 
   const handleVariantImageUpload = (index: number, file: File | null) => {
     if (!file) {
@@ -154,6 +178,10 @@ export default function SellerDashboard() {
     stock_quantity: 0,
     condition: 'USED' as ProductCondition,
     images: [] as File[],
+    size: '',
+    color: '',
+    type: '',
+    is_bulky: '',
   });
   const [productImagePreviews, setProductImagePreviews] = useState<string[]>([]);
 
@@ -187,25 +215,10 @@ export default function SellerDashboard() {
   const menuItems = [
     { id: 'overview', label: 'Tổng quan', icon: Home },
     { id: 'products', label: 'Sản phẩm', icon: Package },
-    { id: 'orders', label: 'Đơn hàng', icon: ShoppingCart },
+    { id: 'orders', label: 'Đơn đặt hàng', icon: ShoppingCart },
     { id: 'customers', label: 'Khách hàng', icon: Users },
     { id: 'reports', label: 'Báo cáo', icon: BarChart3 },
     { id: 'settings', label: 'Cài đặt', icon: Settings },
-  ];
-
-  const stats = [
-    { label: 'Doanh thu', value: '45,250,000₫', change: '+12.5%', isPositive: true, icon: DollarSign },
-    { label: 'Đơn hàng', value: '156', change: '+8.2%', isPositive: true, icon: ShoppingCart },
-    { label: 'Sản phẩm', value: '42', change: '+3', isPositive: true, icon: Package },
-    { label: 'Lượt xem', value: '2,340', change: '-2.4%', isPositive: false, icon: Eye },
-  ];
-
-  const recentOrders = [
-    { id: '#ORD-001', customer: 'Nguyễn Văn A', total: '450,000₫', status: 'pending', date: '02/04/2025' },
-    { id: '#ORD-002', customer: 'Trần Thị B', total: '320,000₫', status: 'processing', date: '02/04/2025' },
-    { id: '#ORD-003', customer: 'Lê Văn C', total: '890,000₫', status: 'completed', date: '01/04/2025' },
-    { id: '#ORD-004', customer: 'Phạm Thị D', total: '150,000₫', status: 'completed', date: '01/04/2025' },
-    { id: '#ORD-005', customer: 'Hoàng Văn E', total: '670,000₫', status: 'pending', date: '31/03/2025' },
   ];
 
   const storeId = useMemo(() => {
@@ -223,7 +236,35 @@ export default function SellerDashboard() {
 
     return undefined;
   }, [products, user?.businessStoreId, user?.c2cStoreId]);
+useEffect(() => {
 
+  const loadDashboard = async () => {
+
+    try {
+
+      if (!storeId) return;
+
+      const data =
+  await dashboardAPI.getStoreOverview(storeId);
+
+setOverview(data);
+
+const orders =
+  await orderAPI.getStoreOrders(storeId);
+
+setRecentOrders(orders);
+    } catch (err: any) {
+
+      toast.error(err.message);
+
+    }
+  };
+
+  if (activeTab === 'overview') {
+    loadDashboard();
+  }
+
+}, [storeId, activeTab]);
   const formatMoney = (value: number) => `${value.toLocaleString('vi-VN')}₫`;
 
   const formatChatTime = (value: string) => {
@@ -286,18 +327,17 @@ export default function SellerDashboard() {
   }, [shopCategoryFilter, shopCategoryTabs]);
 
   const getStatusBadge = (status: string) => {
-    switch (status) {
-      case 'pending': return <Badge className="bg-yellow-100 text-yellow-700 border-yellow-300">Chờ xử lý</Badge>;
-      case 'processing': return <Badge className="bg-blue-100 text-blue-700 border-blue-300">Đang xử lý</Badge>;
-      case 'completed': return <Badge className="bg-green-100 text-green-700 border-green-300">Hoàn thành</Badge>;
-      case 'active': return <Badge className="bg-green-100 text-green-700 border-green-300">Đang bán</Badge>;
-      case 'out-of-stock': return <Badge className="bg-red-100 text-red-700 border-red-300">Hết hàng</Badge>;
-      case 'AVAILABLE': return <Badge className="bg-green-100 text-green-700 border-green-300">Đang bán</Badge>;
-      case 'OUT_OF_STOCK': return <Badge className="bg-red-100 text-red-700 border-red-300">Hết hàng</Badge>;
-      default: return <Badge>{status}</Badge>;
-    }
-  };
-
+  switch (status) {
+    case 'PENDING':    return <Badge className="bg-yellow-50 text-yellow-800 border border-yellow-200">Chờ xác nhận</Badge>;
+    case 'PICKUP':     return <Badge className="bg-blue-50 text-blue-800 border border-blue-200">Chờ lấy hàng</Badge>;
+    case 'SHIPPING':   return <Badge className="bg-purple-50 text-purple-800 border border-purple-200">Đang giao</Badge>;
+    case 'DELIVERED':  return <Badge className="bg-green-50 text-green-800 border border-green-200">Đã giao</Badge>;
+    case 'CANCELLED':  return <Badge className="bg-red-50 text-red-800 border border-red-200">Đã hủy</Badge>;
+    case 'AVAILABLE':  return <Badge className="bg-green-50 text-green-800 border border-green-200">Đang bán</Badge>;
+    case 'OUT_OF_STOCK': return <Badge className="bg-red-50 text-red-800 border border-red-200">Hết hàng</Badge>;
+    default: return <Badge>{status}</Badge>;
+  }
+};
   const loadProducts = async () => {
     if (!user) {
       return;
@@ -334,51 +374,15 @@ export default function SellerDashboard() {
     if (activeTab === 'products') {
       void loadProducts();
       void loadCategories();
-    } else if (activeTab === 'orders') {
-      void loadOrders();
-    }
+    } 
   }, [activeTab]);
 
-  const loadOrders = async () => {
-    if (!storeId) return;
-    setOrdersLoading(true);
-    try {
-      const data = await orderAPI.getStoreOrders(storeId);
-      setOrders(data);
-    } catch (error) {
-      console.error('Failed to load orders:', error);
-    } finally {
-      setOrdersLoading(false);
-    }
-  };
+  
 
-  const handleUpdateOrderStatus = async (orderId: string, status: string) => {
-    try {
-      await orderAPI.updateStatus(orderId, status);
-      toast.success(`Cập nhật trạng thái thành ${status} thành công`);
-      void loadOrders();
-    } catch (error: any) {
-      toast.error(error.message);
-    }
-  };
+ 
+ 
 
-  const handleCancelOrder = async (orderId: string) => {
-    if (!window.confirm("Bạn có chắc chắn muốn hủy đơn hàng này?")) return;
-    try {
-      await orderAPI.cancelOrder(orderId);
-      toast.success("Đã hủy đơn hàng");
-      void loadOrders();
-    } catch (error: any) {
-      toast.error(error.message);
-    }
-  };
-
-  const filteredOrders = useMemo(() => {
-    return orders.filter(o =>
-      o.id.toLowerCase().includes(orderSearchTerm.toLowerCase()) ||
-      o.shipping_address.toLowerCase().includes(orderSearchTerm.toLowerCase())
-    );
-  }, [orders, orderSearchTerm]);
+  
 
   useEffect(() => {
     if (activeTab !== 'customers' || !storeId) {
@@ -504,21 +508,47 @@ export default function SellerDashboard() {
     [selectedChatUserId, storeConversations],
   );
 
+  // const resetProductForm = () => {
+  //   setEditingProduct(null);
+  //   setProductVariants([{ color: '', size: '', price: 0, stock_quantity: 0 }]);
+  //   setProductSpecifications([{ label: '', value: '' }]);
+  //   setVariantUploadFiles([null]);
+  //   setVariantImagePreviews(['']);
+  //   setProductForm({
+  //     name: '',
+  //     category_id: '',
+  //     description: '',
+  //     price: 0,
+  //     stock_quantity: 0,
+  //     condition: user?.role === 'business' ? 'NEW' : 'USED',
+  //     images: [],
+  //     size: '',
+  //     color: '',
+  //     type: '',
+  //     is_bulky: '',
+  //   });
+  // };
   const resetProductForm = () => {
-    setEditingProduct(null);
-    setProductVariants([{ color: '', size: '', price: 0, stock_quantity: 0 }]);
-    setProductSpecifications([{ label: '', value: '' }]);
-    setVariantUploadFiles([null]);
-    setVariantImagePreviews(['']);
     setProductForm({
       name: '',
       category_id: '',
       description: '',
       price: 0,
       stock_quantity: 0,
-      condition: user?.role === 'business' ? 'NEW' : 'USED',
+      condition: 'NEW',
       images: [],
+      size: '',
+      color: '',
+      type: '',
+      is_bulky: '',
     });
+    setProductVariants([{ color: '', size: '', price: 0, stock_quantity: 0 }]);
+    setProductSpecifications([{ label: '', value: '' }]);
+    setProductImagePreviews([]);
+    setVariantImagePreviews([]);
+    setVariantUploadFiles([]);
+    setEditingProduct(null);
+    setIsModerationError(false);
   };
 
   const handleOpenCreate = () => {
@@ -526,262 +556,439 @@ export default function SellerDashboard() {
     setIsModerationError(false); // Reset lỗi AI khi mở form mới
     setShowProductForm(true);
   };
+  
+  // const handleOpenEdit = (product: Product) => {
+  //   // 1. CHUẨN HÓA MẢNG ẢNH TỪ POSTGRES ({url1,url2})
+  //   let parsedImages: string[] = [];
+  //   if (product.images) {
+  //     if (Array.isArray(product.images)) {
+  //       parsedImages = product.images;
+  //     } else if (typeof product.images === 'string') {
+  //       let imgStr = (product.images as string).trim();
+  //       if (imgStr.startsWith('{') && imgStr.endsWith('}')) {
+  //         parsedImages = imgStr.slice(1, -1).split(',').map(url => url.trim().replace(/^"|"$/g, '')).filter(Boolean);
+  //       } else {
+  //         parsedImages = imgStr.split(',').map(url => url.trim()).filter(Boolean);
+  //       }
+  //     }
+  //   }
 
-  const handleOpenEdit = (product: Product) => {
-    const metadata = parseDescriptionMetadata(product.description);
-    const initialVariants =
-      metadata.variants.length > 0
-        ? metadata.variants
-        : [{ color: '', size: '', price: Number(product.price || 0), stock_quantity: Number(product.stock_quantity || 0) }];
-    const initialSpecifications =
-      metadata.specifications.length > 0 ? metadata.specifications : [{ label: '', value: '' }];
+  //   // 2. KHÔNG DÙNG PARSE DESCRIPTION NỮA - ĐỌC THẲNG TỪ CỘT VARIANTS CỦA DATABASE
+  //   let safeVariants: any[] = [];
+    
+  //   // Nếu BE trả về cột variants độc lập (dạng JSON String hoặc Array)
+  //   if ((product as any).variants) {
+  //     if (typeof (product as any).variants === 'string') {
+  //       try { safeVariants = JSON.parse((product as any).variants); } catch(e) { safeVariants = []; }
+  //     } else if (Array.isArray((product as any).variants)) {
+  //       safeVariants = (product as any).variants;
+  //     }
+  //   } 
+  //   // Nếu BE chưa trả variants, thử fallback dùng hàm parse cũ của bạn
+  //   else {
+  //     const metadata = parseDescriptionMetadata(product.description || '');
+  //     safeVariants = metadata.variants;
+  //   }
 
+  //   const initialVariants = safeVariants.length > 0 
+  //     ? safeVariants 
+  //     : [{ color: '', size: '', price: Number(product.price || 0), stock_quantity: Number(product.stock_quantity || 0) }];
+
+  //   // 3. CHUẨN HÓA COLOR VÀ SIZE (Nếu cột độc lập rỗng, tự gom từ variants)
+  //   let defaultColor = product.color || '';
+  //   let defaultSize = product.size || '';
+    
+  //   if (!defaultColor && initialVariants.length > 0) {
+  //     defaultColor = Array.from(new Set(initialVariants.map((v: any) => v.color).filter(Boolean))).join(', ');
+  //   }
+  //   if (!defaultSize && initialVariants.length > 0) {
+  //     defaultSize = Array.from(new Set(initialVariants.map((v: any) => v.size).filter(Boolean))).join(', ');
+  //   }
+
+  //  // 4. Lọc bỏ chuỗi JSON (variants, specs) ra khỏi mô tả thuần túy
+  // const cleanDescription = (product.description || '')
+  // .replace(/VARIANTS_JSON:.*/s, '')
+  // .replace(/SPECIFICATIONS_JSON:.*/s, '')
+  // .trim();
+
+  //   // 5. CẬP NHẬT ĐỒNG LOẠT VÀO STATE
+  //   setEditingProduct(product);
+  //   setProductVariants(initialVariants);
+  //   setVariantUploadFiles(Array.from({ length: initialVariants.length }, () => null));
+
+  //   setVariantImagePreviews(
+  //     initialVariants.map((variant: any, index: number) => {
+  //       if (variant.image_url) return getAbsoluteImageUrl(variant.image_url);
+  //       return getAbsoluteImageUrl(parsedImages[index] || '');
+  //     }),
+  //   );
+
+  //   setProductForm({
+  //     name: product.name || '',
+  //     category_id: product.category_id || '', 
+  //     description: cleanDescription, 
+  //     price: Number(product.price || 0),
+  //     stock_quantity: Number(product.stock_quantity || 0),
+  //     condition: product.condition || 'NEW',
+  //     images: [],
+  //     size: defaultSize, 
+  //     color: defaultColor, 
+  //     type: product.type || '',
+  //     is_bulky: product.is_bulky || '',
+  //   });
+
+  //   setProductImagePreviews(parsedImages);
+  //   setIsModerationError(false);
+    
+  //   // Mở Modal
+  //   setTimeout(() => {
+  //     setShowProductForm(true);
+  //   }, 50);
+  // };
+ const handleOpenEdit = (product: Product) => {
+    // 1. CHUẨN HÓA ẢNH TỪ POSTGRES (Giữ nguyên - Đã hoạt động tốt)
+    let parsedImages: string[] = [];
+    if (product.images) {
+      if (Array.isArray(product.images)) {
+        parsedImages = product.images;
+      } else if (typeof product.images === 'string') {
+        let imgStr = (product.images as string).trim();
+        if (imgStr.startsWith('{') && imgStr.endsWith('}')) {
+          parsedImages = imgStr.slice(1, -1).split(',').map(url => url.trim().replace(/^"|"$/g, '')).filter(Boolean);
+        } else {
+          parsedImages = imgStr.split(',').map(url => url.trim()).filter(Boolean);
+        }
+      }
+    }
+
+    // 2. CHUẨN HÓA VARIANTS (Đảm bảo lấy được Color/Size từ DB)
+    let safeVariants: any[] = [];
+    if ((product as any).variants) {
+      if (typeof (product as any).variants === 'string') {
+        try { safeVariants = JSON.parse((product as any).variants); } catch(e) { safeVariants = []; }
+      } else if (Array.isArray((product as any).variants)) {
+        safeVariants = (product as any).variants;
+      }
+    }
+    
+    const metadata = parseDescriptionMetadata(product.description || '');
+    
+    // Nếu DB không có cột variants, dùng hàm parse dự phòng
+    if (safeVariants.length === 0) {
+      safeVariants = metadata.variants || [];
+    }
+
+    const initialVariants = safeVariants.length > 0 
+      ? safeVariants 
+      : [{ color: '', size: '', price: Number(product.price || 0), stock_quantity: Number(product.stock_quantity || 0) }];
+
+    const initialSpecifications = metadata.specifications && metadata.specifications.length > 0 
+      ? metadata.specifications 
+      : [{ label: '', value: '' }];
+
+    // 3. XỬ LÝ COLOR & SIZE (Gom từ variants nếu cột độc lập trống)
+    let defaultColor = product.color || '';
+    let defaultSize = product.size || '';
+    if (!defaultColor && initialVariants.length > 0) {
+      defaultColor = Array.from(new Set(initialVariants.map((v: any) => v.color).filter(Boolean))).join(', ');
+    }
+    if (!defaultSize && initialVariants.length > 0) {
+      defaultSize = Array.from(new Set(initialVariants.map((v: any) => v.size).filter(Boolean))).join(', ');
+    }
+
+    // 4. SỬA LỖI DANH MỤC
+    const safeCategoryId = product.category_id || (product as any).category?.id || (product as any).category?._id || '';
+
+    // 5. SỬA LỖI MÔ TẢ (Dùng phép cộng chuỗi để khung chat không ăn mất code)
+    const variantRegex = new RegExp('<' + '!--variants:(.*?)--' + '>', 's');
+    const specsRegex = new RegExp('<' + '!--specs:(.*?)--' + '>', 's');
+    
+    let cleanDescription = (product.description || '')
+      .replace(variantRegex, '')
+      .replace(specsRegex, '')
+      .trim();
+      
+    if (!cleanDescription) {
+      cleanDescription = metadata.plainDescription || '';
+    }
+
+    // 6. CẬP NHẬT ĐỒNG LOẠT VÀO STATE
     setEditingProduct(product);
     setProductVariants(initialVariants);
     setProductSpecifications(initialSpecifications);
     setVariantUploadFiles(Array.from({ length: initialVariants.length }, () => null));
+
     setVariantImagePreviews(
-      initialVariants.map((variant) => {
-        if (variant.image_url) {
-          return variant.image_url;
-        }
-
-        if (
-          typeof variant.image_index === 'number' &&
-          Number.isInteger(variant.image_index) &&
-          variant.image_index >= 0
-        ) {
-          return product.images?.[variant.image_index] || '';
-        }
-
-        return '';
-      }),
+      initialVariants.map((variant: any, index: number) => {
+        if (variant.image_url) return getAbsoluteImageUrl(variant.image_url);
+        return getAbsoluteImageUrl(parsedImages[index] || '');
+      })
     );
+
     setProductForm({
-      name: product.name,
-      category_id: product.category_id || '',
-      description: metadata.plainDescription,
+      name: product.name || '',
+      category_id: safeCategoryId,
+      description: cleanDescription,
       price: Number(product.price || 0),
       stock_quantity: Number(product.stock_quantity || 0),
-      condition: product.condition,
+      condition: product.condition || 'NEW',
       images: [],
+      size: defaultSize,
+      color: defaultColor,
+      type: product.type || '',
+      is_bulky: product.is_bulky || false,
     });
-    setIsModerationError(false); // Reset lỗi AI khi mở chỉnh sửa
-    setShowProductForm(true);
+
+    setProductImagePreviews(parsedImages);
+    setIsModerationError(false);
+    
+    setTimeout(() => {
+      setShowProductForm(true);
+    }, 50);
   };
 
-  const handleSubmitProduct = async (event: React.FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
+  const handleSaveProduct = async () => {
+  // Kiểm tra nếu chưa chọn danh mục hoặc danh mục là chuỗi rỗng
+  if (!productForm.category_id || productForm.category_id.trim() === '') {
+    toast.error("Vui lòng chọn Danh mục cho sản phẩm!");
+    return; // Dừng hàm, không cho gửi API lên backend
+  }
 
-    if (!user) {
-      return;
+  try {
+    // Tiếp tục logic build description và gọi API tạo sản phẩm của bạn...
+    const finalDescription = buildDescriptionWithVariants(
+      productForm.description,
+      productVariants,
+      productSpecifications
+    );
+
+    const submitData = {
+      ...productForm,
+      description: finalDescription,
+      // Đảm bảo không dính mảng rỗng nếu không có variant
+      price: Number(productForm.price),
+      stock_quantity: Number(productForm.stock_quantity)
+    };
+
+    if (editingProduct) {
+      await updateProduct(editingProduct.id, submitData);
+      toast.success("Cập nhật sản phẩm thành công!");
+    } else {
+      await createProduct(submitData);
+      toast.success("Thêm sản phẩm thành công!");
     }
+    
+    // Reset form và reload lại danh sách sản phẩm...
+  } catch (error) {
+    console.error(error);
+    toast.error("Có lỗi xảy ra khi lưu sản phẩm!");
+  }
+};
 
-    const resolvedStoreId = storeId;
-
-    if (!resolvedStoreId) {
-      setProductsError('Không tìm thấy cửa hàng để quản lý sản phẩm. Hãy kích hoạt shop trước.');
-      return;
-    }
-
-    if (!productForm.category_id) {
-      setProductsError('Vui lòng chọn danh mục cho sản phẩm.');
-      return;
-    }
-
-    setIsSubmitting(true);
-    setProductsError(null);
-    setIsModerationError(false); // Reset trạng thái lỗi AI trước mỗi lần submit
-
-    try {
-      const uploadedImages: File[] = [...productForm.images];
-      const normalizedVariants = productVariants
-        .map((variant, index) => ({ variant, index }))
-        .filter(({ variant }) => variant.color.trim() && variant.size.trim())
-        .map(({ variant, index }) => {
-          const uploadedVariantFile = variantUploadFiles[index];
-          const imageIndex = uploadedVariantFile ? uploadedImages.push(uploadedVariantFile) - 1 : undefined;
-
-          const validImageUrl =
-            variant.image_url &&
-              !variant.image_url.startsWith('data:') &&
-              (variant.image_url.startsWith('http://') ||
-                variant.image_url.startsWith('https://') ||
-                variant.image_url.startsWith('/uploads/'))
-              ? variant.image_url.trim()
-              : undefined;
-
-          return {
-            color: variant.color.trim(),
-            size: variant.size.trim(),
-            price: Number(variant.price),
-            stock_quantity: Number(variant.stock_quantity || 0),
-            image_index: imageIndex,
-            image_url: validImageUrl,
-          };
-        })
-        .filter((variant) => Number.isFinite(variant.price) && variant.price >= 0);
-
-      if (normalizedVariants.length === 0) {
-        throw new Error('Vui lòng thêm ít nhất 1 biến thể có màu sắc, size và giá hợp lệ.');
-      }
-
-      const lowestPrice = Math.min(...normalizedVariants.map((variant) => variant.price));
-      const totalStock = normalizedVariants.reduce(
-        (sum, variant) => sum + Math.max(0, Number(variant.stock_quantity || 0)),
-        0,
-      );
-      const normalizedSpecifications = productSpecifications
-        .map((spec) => ({
-          label: spec.label.trim(),
-          value: spec.value.trim(),
-        }))
-        .filter((spec) => spec.label && spec.value);
-
-      const payload = {
-        name: productForm.name.trim(),
-        category_id: productForm.category_id,
-        description: buildDescriptionWithVariants(
-          productForm.description.trim(),
-          normalizedVariants,
-          normalizedSpecifications,
-        ),
-        price: lowestPrice,
-        stock_quantity: totalStock,
-        condition: productForm.condition,
-        store_id: resolvedStoreId,
-        images: uploadedImages,
-      };
-
-      if (editingProduct) {
-        await updateProduct(editingProduct.id, payload, token);
-      } else {
-        await createProduct(payload, token);
-      }
-
-      // ✅ Thành công - đóng form và reload
-      setShowProductForm(false);
-      resetProductForm();
-      toast.success('🎉 Thêm sản phẩm thành công! Sản phẩm đã được đăng bán.');
-      await loadProducts();
-    } catch (error: any) {
-      // 🤖 Kiểm tra xem có phải lỗi từ AI Moderation không (HTTP 403)
-      const isModerationBlocked =
-        error?.status === 403 ||
-        error?.statusCode === 403 ||
-        error?.message?.includes('vi phạm') ||
-        error?.message?.includes('cấm');
-
-      if (isModerationBlocked) {
-        // Bật cờ để viền đỏ textarea mô tả
-        setIsModerationError(true);
-        // Hiển thị toast lỗi đỏ nổi bật
-        toast.error(
-          '🚫 Nội dung vi phạm: Sản phẩm của bạn chứa từ ngữ vi phạm tiêu chuẩn cộng đồng hoặc hàng hóa cấm kinh doanh. Vui lòng chỉnh sửa lại tên và mô tả.',
-          { duration: 6000 }
-        );
-        setProductsError('🤖 AI phát hiện nội dung vi phạm. Vui lòng chỉnh sửa tên và mô tả sản phẩm.');
-      } else {
-        setIsModerationError(false);
-        setProductsError(error instanceof Error ? error.message : 'Lưu sản phẩm thất bại');
-      }
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
-  const handleDeleteProduct = async (product: Product) => {
-    if (!window.confirm(`Xóa sản phẩm "${product.name}"?`)) {
-      return;
-    }
-
-    setProductsError(null);
-    try {
-      await deleteProduct(product.id, token);
-      await loadProducts();
-    } catch (error) {
-      setProductsError(error instanceof Error ? error.message : 'Xóa sản phẩm thất bại');
-    }
-  };
-
-  const handleLogout = () => {
-    logout();
-    navigate('/');
-  };
-
-  const updateVariant = (
-    index: number,
-    key: keyof ProductVariant,
-    value: string | number | undefined,
-  ) => {
-    setProductVariants((prev) => {
-      const next = [...prev];
-      next[index] = {
-        ...next[index],
-        [key]: value,
-      };
-      return next;
-    });
-  };
-
-  const addVariant = () => {
+const addVariant = () => {
     setProductVariants((prev) => [...prev, { color: '', size: '', price: 0, stock_quantity: 0 }]);
     setVariantUploadFiles((prev) => [...prev, null]);
     setVariantImagePreviews((prev) => [...prev, '']);
   };
 
-  const handleVariantNumericInput = (
-    index: number,
-    key: 'price' | 'stock_quantity',
-    value: string,
-  ) => {
-    const onlyDigits = value.replace(/\D/g, '');
-    const normalized = onlyDigits.replace(/^0+(?=\d)/, '');
-    updateVariant(index, key, normalized === '' ? 0 : Number(normalized));
-  };
-
-  const removeVariant = (index: number) => {
+  const updateVariant = (index: number, key: keyof ProductVariant, value: string | number | undefined) => {
     setProductVariants((prev) => {
-      if (prev.length === 1) {
-        return prev;
-      }
-      return prev.filter((_, variantIndex) => variantIndex !== index);
-    });
-
-    setVariantUploadFiles((prev) => {
-      if (prev.length === 1) {
-        return prev;
-      }
-      return prev.filter((_, variantIndex) => variantIndex !== index);
-    });
-
-    setVariantImagePreviews((prev) => {
-      if (prev.length === 1) {
-        return prev;
-      }
-      return prev.filter((_, variantIndex) => variantIndex !== index);
-    });
-  };
-
-  const updateSpecification = (
-    index: number,
-    key: keyof ProductSpecification,
-    value: string,
-  ) => {
-    setProductSpecifications((prev) => {
       const next = [...prev];
-      next[index] = {
-        ...next[index],
-        [key]: value,
-      };
+      next[index] = { ...next[index], [key]: value };
       return next;
     });
   };
 
-  const addSpecification = () => {
-    setProductSpecifications((prev) => [...prev, { label: '', value: '' }]);
+  const removeVariant = (index: number) => {
+    if (productVariants.length <= 1) return;
+    setProductVariants((prev) => prev.filter((_, i) => i !== index));
+    setVariantUploadFiles((prev) => prev.filter((_, i) => i !== index));
+    setVariantImagePreviews((prev) => prev.filter((_, i) => i !== index));
   };
 
+  const handleVariantNumericInput = (index: number, key: 'price' | 'stock_quantity', value: string) => {
+    const onlyDigits = value.replace(/\D/g, '');
+    const normalized = onlyDigits.replace(/^0+(?=\d)/, '');
+    updateVariant(index, key, normalized === '' ? 0 : Number(normalized));
+  };
+const handleDeleteProduct = async (product: Product) => {
+  if (!window.confirm("Bạn có chắc chắn muốn xóa sản phẩm này?")) return;
+  
+  try {
+    await deleteProduct(product.id, token);
+    toast.success("Xóa sản phẩm thành công!");
+    await loadProducts(); // Tải lại danh sách
+  } catch (error: any) {
+    console.error(error);
+    toast.error(error.message || "Lỗi khi xóa sản phẩm");
+  }
+};
+
+const validateAndFormatVariants = (variants: any[]) => {
+  return variants.map(v => ({
+    color: v.color || '',
+    size: v.size || '',
+    price: Number(v.price || 0),
+    stock_quantity: Number(v.stock_quantity || 0)
+  }));
+};
+//  const handleSubmitProduct = async (event: React.FormEvent<HTMLFormElement>) => {
+//   event.preventDefault();
+//   setIsSubmitting(true);
+//   try {
+//     // 1. Trước khi append, dùng hàm buildDescriptionWithVariants để gộp data (gồm description, variants, specs)
+//     const finalDescription = buildDescriptionWithVariants(
+//       productForm.description,
+//       productVariants,
+//       productSpecifications
+//     );
+
+//     // Lấy color và size từ mảng variants (lấy biến thể đầu tiên làm mặc định)
+//     const mainColor = productVariants.length > 0 ? productVariants[0].color : productForm.color;
+//     const mainSize = productVariants.length > 0 ? productVariants[0].size : productForm.size;
+
+//     const formData = new FormData();
+    
+//     // 2. Append các trường cơ bản từ productForm
+//     formData.append('name', productForm.name);
+//     formData.append('price', String(productForm.price));
+//     formData.append('stock_quantity', String(productForm.stock_quantity));
+//     formData.append('category_id', productForm.category_id);
+//     formData.append('store_id', storeId || '');
+//     formData.append('condition', productForm.condition);
+//     formData.append('is_bulky', productForm.is_bulky ? 'true' : 'false');
+//     formData.append('description', finalDescription); // Gửi description đã gộp biến thể
+//     formData.append('color', mainColor || '');
+//     formData.append('size', mainSize || '');
+
+//     // 3. Append các trường biến thể vào FormData (Quan trọng)
+//     formData.append('variants', JSON.stringify(productVariants));
+
+//     productForm.images.forEach((file) => {
+//       formData.append('images', file);
+//     });
+
+//     // 4. Append ảnh biến thể CÙNG KEY 'images'
+//     variantUploadFiles.forEach((file) => {
+//       if (file) {
+//         formData.append('images', file);
+//       }
+//     });
+
+//     // In ra console chi tiết FormData để dễ debug lỗi 400
+//     console.log("--- SUBMIT PRODUCT FORM DATA ---");
+//     console.log("store_id:", storeId);
+//     console.log("category_id:", productForm.category_id);
+//     formData.forEach((value, key) => {
+//       if (value instanceof File) {
+//         console.log(`[File] ${key}:`, value.name, `(${value.size} bytes)`);
+//       } else {
+//         console.log(`${key}:`, value);
+//       }
+//     });
+//     console.log("--------------------------------");
+
+//     // Gửi yêu cầu API
+//     if (editingProduct) {
+//       await updateProduct(editingProduct.id, formData as any, token);
+//     } else {
+//       await createProduct(formData as any, token);
+//     }
+
+//     toast.success('Lưu sản phẩm thành công!');
+//     setShowProductForm(false);
+//     await loadProducts();
+//   } catch (error: any) {
+//     // Lấy message thực sự từ Backend trả về để người dùng dễ quan sát
+//     const backendErrorMsg = error.response?.data?.error || error.response?.data?.message;
+//     console.error("Chi tiết lỗi từ Backend:", error.response?.data || error);
+//     toast.error(backendErrorMsg || error.message || 'Lưu không thành công!');
+//   } finally {
+//     setIsSubmitting(false);
+//   }
+// };
+
+const handleSubmitProduct = async (event: React.FormEvent<HTMLFormElement>) => {
+  event.preventDefault();
+  
+  // KIỂM TRA BẮT BUỘC TRƯỚC KHI GỬI
+  if (!productForm.category_id || productForm.category_id.trim() === '') {
+    toast.error("Vui lòng chọn Danh mục cho sản phẩm!");
+    return;
+  }
+
+  setIsSubmitting(true);
+  try {
+    // 1. Gộp dữ liệu mô tả và biến thể cấu trúc
+    const finalDescription = buildDescriptionWithVariants(
+      productForm.description || '',
+      productVariants,
+      productSpecifications
+    );
+
+    // Lấy biến thể đầu tiên làm mặc định cho color/size tổng thể
+    const mainColor = productVariants.length > 0 && productVariants[0].color ? productVariants[0].color : productForm.color;
+    const mainSize = productVariants.length > 0 && productVariants[0].size ? productVariants[0].size : productForm.size;
+
+    const formData = new FormData();
+    
+    // 2. Append dữ liệu dạng chuỗi và số
+    formData.append('name', productForm.name.trim());
+    formData.append('price', String(productForm.price || 0));
+    formData.append('stock_quantity', String(productForm.stock_quantity || 0));
+    formData.append('category_id', productForm.category_id.trim()); // Đảm bảo ăn chắc ID danh mục
+    formData.append('store_id', storeId || '');
+    formData.append('condition', productForm.condition);
+    formData.append('is_bulky', productForm.is_bulky ? 'true' : 'false');
+    formData.append('description', finalDescription); // Gửi phần mô tả đã gộp metadata
+    formData.append('color', mainColor || '');
+    formData.append('size', mainSize || '');
+
+    // 3. Ép kiểu JSON chuỗi cho mảng variants trước khi đẩy qua Form
+    formData.append('variants', JSON.stringify(productVariants));
+
+    // 4. Đẩy danh sách file ảnh chính
+    if (productForm.images && productForm.images.length > 0) {
+      productForm.images.forEach((file) => {
+        formData.append('images', file);
+      });
+    }
+
+    // 5. Đẩy danh sách file ảnh biến thể (nếu có)
+    if (variantUploadFiles && variantUploadFiles.length > 0) {
+      variantUploadFiles.forEach((file) => {
+        if (file) {
+          formData.append('images', file);
+        }
+      });
+    }
+
+    // Debug kiểm tra trực tiếp dữ liệu trước khi bắn API
+    console.log("--- DỮ LIỆU ĐĂNG SẢN PHẨM GỬI LÊN ---");
+    formData.forEach((value, key) => {
+      console.log(`${key}:`, value);
+    });
+
+    // Gọi API xử lý
+    if (editingProduct) {
+      await updateProduct(editingProduct.id, formData as any, token);
+      toast.success('Cập nhật sản phẩm thành công!');
+    } else {
+      await createProduct(formData as any, token);
+      toast.success('Đăng bán sản phẩm thành công!');
+    }
+
+    setShowProductForm(false);
+    resetProductForm();
+    await loadProducts();
+  } catch (error: any) {
+    const backendErrorMsg = error.response?.data?.error || error.response?.data?.message;
+    console.error("Chi tiết lỗi hệ thống:", error.response?.data || error);
+    toast.error(backendErrorMsg || error.message || 'Lưu không thành công!');
+  } finally {
+    setIsSubmitting(false);
+  }
+};
   const removeSpecification = (index: number) => {
     setProductSpecifications((prev) => {
       if (prev.length === 1) {
@@ -862,7 +1069,7 @@ export default function SellerDashboard() {
     user?.role === 'business'
       ? user?.storeStatus === 'APPROVED'
       : Boolean(user?.hasC2CStore || user?.c2cStoreId);
-
+  
   if (!canManageShop) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center p-6">
@@ -872,7 +1079,7 @@ export default function SellerDashboard() {
           </CardHeader>
           <CardContent className="space-y-4 text-gray-600">
             <p>
-              Cửa hàng của bạn hiện ở trạng thái <span className="font-semibold">{user.storeStatus || 'chưa xác định'}</span> nên chưa thể truy cập trang quản lý.
+              Cửa hàng của bạn hiện ở trạng thái <span className="font-semibold">{user?.storeStatus || 'chưa xác định'}</span> nên chưa thể truy cập trang quản lý.
             </p>
             <p>Vui lòng chờ duyệt lại hoặc liên hệ quản trị viên để được hỗ trợ.</p>
             <div className="flex gap-3">
@@ -899,7 +1106,10 @@ export default function SellerDashboard() {
               <p className="text-xs text-gray-500">{storeType}</p>
               <button
                 type="button"
-                onClick={() => setShowShopPreview(true)}
+                onClick={() => {
+                      setShowProductForm(false);
+                      resetProductForm();
+                         }}
                 className="mt-1 text-xs text-red-500 hover:text-red-600"
               >
                 Xem giao diện shop
@@ -918,8 +1128,8 @@ export default function SellerDashboard() {
                 key={item.id}
                 onClick={() => setActiveTab(item.id as DashboardTab)}
                 className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg mb-1 transition-all ${isActive
-                    ? 'bg-red-50 text-red-600'
-                    : 'text-gray-600 hover:bg-gray-50'
+                  ? 'bg-red-50 text-red-600'
+                  : 'text-gray-600 hover:bg-gray-50'
                   }`}
               >
                 <Icon className="size-5" />
@@ -975,84 +1185,353 @@ export default function SellerDashboard() {
 
         {/* Content */}
         <div className="p-6">
-          {/* Overview Tab */}
-          {activeTab === 'overview' && (
-            <div className="space-y-6">
-              <div>
-                <h1 className="text-2xl mb-1">Tổng quan</h1>
-                <p className="text-gray-500">Theo dõi hiệu suất kinh doanh của bạn</p>
-              </div>
+          
+{/* Overview Tab */}
+{activeTab === 'overview' && !selectedOrderDetail && (
+  <div className="space-y-8">
+    <div>
+      <h1 className="text-3xl font-bold text-gray-900 mb-1">Tổng quan</h1>
+      <p className="text-gray-500">Theo dõi tình hình kinh doanh của cửa hàng hôm nay</p>
+    </div>
 
-              {/* Stats Grid */}
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                {stats.map((stat) => {
-                  const Icon = stat.icon;
-                  return (
-                    <Card key={stat.label}>
-                      <CardContent className="p-6">
-                        <div className="flex items-center justify-between mb-2">
-                          <p className="text-sm text-gray-500">{stat.label}</p>
-                          <Icon className="size-5 text-gray-400" />
-                        </div>
-                        <p className="text-2xl mb-1">{stat.value}</p>
-                        <div className="flex items-center gap-1">
-                          {stat.isPositive ? (
-                            <ArrowUpRight className="size-4 text-green-600" />
-                          ) : (
-                            <ArrowDownRight className="size-4 text-red-600" />
-                          )}
-                          <span
-                            className={`text-sm ${stat.isPositive ? 'text-green-600' : 'text-red-600'
-                              }`}
-                          >
-                            {stat.change}
-                          </span>
-                          <span className="text-sm text-gray-500">so với tháng trước</span>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  );
-                })}
+    {/* Stats Cards */}
+    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+      {[
+        { label: 'Doanh thu', value: formatMoney(overview?.revenue || 0), subValue: 'Tháng này', icon: DollarSign, color: 'text-emerald-600', bg: 'bg-emerald-50', border: 'border-emerald-100' },
+        { label: 'Đơn hàng', value: overview?.totalOrders?.toLocaleString('vi-VN') || '0', subValue: 'Tổng đơn', icon: ShoppingCart, color: 'text-blue-600', bg: 'bg-blue-50', border: 'border-blue-100' },
+        { label: 'Sản phẩm', value: overview?.totalProducts?.toLocaleString('vi-VN') || '0', subValue: 'Đang bán', icon: Package, color: 'text-amber-600', bg: 'bg-amber-50', border: 'border-amber-100' },
+        { label: 'Khách hàng', value: overview?.totalCustomers?.toLocaleString('vi-VN') || '0', subValue: 'Đã mua hàng', icon: Users, color: 'text-purple-600', bg: 'bg-purple-50', border: 'border-purple-100' },
+      ].map((stat, index) => {
+        const Icon = stat.icon;
+        return (
+          <Card key={index} className={`border ${stat.border} hover:shadow-lg transition-all duration-200`}>
+            <CardContent className="p-6">
+              <div className="flex items-start justify-between">
+                <div>
+                  <p className="text-sm font-medium text-gray-500">{stat.label}</p>
+                  <p className="text-3xl font-bold text-gray-900 mt-3 tracking-tighter">{stat.value}</p>
+                  <p className="text-xs text-gray-400 mt-1">{stat.subValue}</p>
+                </div>
+                <div className={`p-3 rounded-2xl ${stat.bg}`}>
+                  <Icon className={`size-9 ${stat.color}`} />
+                </div>
               </div>
+            </CardContent>
+          </Card>
+        );
+      })}
+    </div>
 
-              {/* Recent Orders */}
-              <Card>
-                <CardHeader className="flex flex-row items-center justify-between">
-                  <CardTitle>Đơn hàng gần đây</CardTitle>
-                  <Button variant="outline" size="sm">
-                    Xem tất cả
-                  </Button>
-                </CardHeader>
-                <CardContent>
-                  <div className="overflow-x-auto">
-                    <table className="w-full">
-                      <thead>
-                        <tr className="border-b">
-                          <th className="text-left py-3 px-4 text-sm font-medium text-gray-500">Mã đơn</th>
-                          <th className="text-left py-3 px-4 text-sm font-medium text-gray-500">Khách hàng</th>
-                          <th className="text-left py-3 px-4 text-sm font-medium text-gray-500">Ngày</th>
-                          <th className="text-left py-3 px-4 text-sm font-medium text-gray-500">Tổng tiền</th>
-                          <th className="text-left py-3 px-4 text-sm font-medium text-gray-500">Trạng thái</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {recentOrders.map((order) => (
-                          <tr key={order.id} className="border-b hover:bg-gray-50">
-                            <td className="py-3 px-4 font-medium">{order.id}</td>
-                            <td className="py-3 px-4">{order.customer}</td>
-                            <td className="py-3 px-4 text-gray-500">{order.date}</td>
-                            <td className="py-3 px-4 font-medium">{order.total}</td>
-                            <td className="py-3 px-4">{getStatusBadge(order.status)}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
+    {/* Charts */}
+    <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
+      <Card className="lg:col-span-3">
+        <CardHeader><CardTitle>Thống kê đơn hàng theo trạng thái</CardTitle></CardHeader>
+        <CardContent>
+          <ResponsiveContainer width="100%" height={340}>
+            <BarChart data={[
+              { name: 'Chờ xác nhận', value: overview?.statusStats?.pending || 0, fill: '#f59e0b' },
+              { name: 'Chờ lấy hàng', value: overview?.statusStats?.pickup || 0, fill: '#3b82f6' },
+              { name: 'Đang giao', value: overview?.statusStats?.shipping || 0, fill: '#8b5cf6' },
+              { name: 'Đã giao', value: overview?.statusStats?.delivered || 0, fill: '#10b981' },
+              { name: 'Đã hủy', value: overview?.statusStats?.cancelled || 0, fill: '#ef4444' },
+            ]}>
+              <XAxis dataKey="name" />
+              <YAxis />
+              <Tooltip />
+              <Bar dataKey="value" radius={[6, 6, 0, 0]} />
+            </BarChart>
+          </ResponsiveContainer>
+        </CardContent>
+      </Card>
+
+      <Card className="lg:col-span-2">
+        <CardHeader><CardTitle>Tỷ lệ đơn hàng</CardTitle></CardHeader>
+        <CardContent>
+          <ResponsiveContainer width="100%" height={300}>
+            <PieChart>
+              <Pie
+                data={[
+                  { name: 'Đã giao', value: overview?.statusStats?.delivered || 0, fill: '#10b981' },
+                  { name: 'Đang giao', value: overview?.statusStats?.shipping || 0, fill: '#8b5cf6' },
+                  { name: 'Chờ lấy hàng', value: overview?.statusStats?.pickup || 0, fill: '#3b82f6' },
+                  { name: 'Chờ xác nhận', value: overview?.statusStats?.pending || 0, fill: '#f59e0b' },
+                  { name: 'Đã hủy', value: overview?.statusStats?.cancelled || 0, fill: '#ef4444' },
+                ]}
+                cx="50%" cy="48%" innerRadius={75} outerRadius={115} dataKey="value"
+              />
+              <Tooltip formatter={(value: number, name: string, props: any) => {
+                const total = (overview?.statusStats?.delivered || 0) + 
+                             (overview?.statusStats?.shipping || 0) + 
+                             (overview?.statusStats?.pickup || 0) + 
+                             (overview?.statusStats?.pending || 0) + 
+                             (overview?.statusStats?.cancelled || 0);
+                const percent = total > 0 ? ((value / total) * 100).toFixed(1) : 0;
+                return [`${value} đơn (${percent}%)`, name];
+              }} />
+            </PieChart>
+          </ResponsiveContainer>
+
+          {/* Legend không hiển thị số lượng */}
+          <div className="grid grid-cols-2 gap-3 text-sm mt-6">
+            {[
+              { label: 'Đã giao', color: '#10b981' },
+              { label: 'Đang giao', color: '#8b5cf6' },
+              { label: 'Chờ lấy hàng', color: '#3b82f6' },
+              { label: 'Chờ xác nhận', color: '#f59e0b' },
+              { label: 'Đã hủy', color: '#ef4444' },
+            ].map((item, i) => (
+              <div key={i} className="flex items-center gap-3">
+                <div className="w-3 h-3 rounded-full" style={{ backgroundColor: item.color }} />
+                <span className="text-gray-600">{item.label}</span>
+              </div>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+
+    {/* Recent Orders */}
+    <Card>
+      <CardHeader className="flex flex-row items-center justify-between">
+        <CardTitle>Đơn hàng gần đây</CardTitle>
+        <Button variant="outline" size="sm" onClick={() => setActiveTab('orders')}>
+          Quản lý tất cả đơn hàng
+        </Button>
+      </CardHeader>
+      <CardContent>
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[800px]">
+            <thead>
+              <tr className="border-b text-sm text-gray-500">
+                <th className="py-4 px-5 text-left font-medium">Mã đơn</th>
+                <th className="py-4 px-5 text-left font-medium">Khách hàng</th>
+                <th className="py-4 px-5 text-left font-medium">Thời gian</th>
+                <th className="py-4 px-5 text-left font-medium">Tổng tiền</th>
+                <th className="py-4 px-5 text-left font-medium">Trạng thái</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y">
+              {(recentOrders || []).slice(0, 8).map((order: any) => (
+                <tr 
+  key={order.id} 
+  className="hover:bg-gray-50 transition-all cursor-pointer group"
+  onClick={() => {
+    setSelectedOrderDetail(order);
+  }}
+>
+                  <td className="py-4 px-5 font-medium text-gray-900 group-hover:text-red-600">#{order.id}</td>
+                  <td className="py-4 px-5 text-gray-700">{order.customer_name || 'Khách hàng'}</td>
+                  <td className="py-4 px-5 text-gray-500 text-sm">
+                    {new Date(order.created_at || order.createdAt).toLocaleString('vi-VN', { 
+                      month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' 
+                    })}
+                  </td>
+                  <td className="py-4 px-5 font-semibold text-red-600">{formatMoney(order.total_amount || 0)}</td>
+                  <td className="py-4 px-5">{getStatusBadge(order.order_status)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </CardContent>
+    </Card>
+  </div>
+)}
+
+{selectedOrderDetail && (
+  <div className="max-w-5xl mx-auto space-y-6">
+
+    <Button
+      variant="outline"
+      onClick={() => setSelectedOrderDetail(null)}
+      className="mb-4"
+    >
+      ← Quay lại Tổng quan
+    </Button>
+
+    <Card className="rounded-2xl shadow-lg">
+      <CardContent className="p-6">
+
+        <div className="flex justify-between items-start mb-6">
+          <div>
+            <h1 className="text-2xl font-bold">
+              Đơn hàng #{selectedOrderDetail.id}
+            </h1>
+
+            <p className="text-gray-500 mt-1">
+              {new Date(
+                selectedOrderDetail.createdAt ||
+                selectedOrderDetail.created_at ||
+                ''
+              ).toLocaleString('vi-VN')}
+            </p>
+          </div>
+
+          {getStatusBadge(selectedOrderDetail.order_status)}
+        </div>
+
+        {/* Sản phẩm */}
+        <h2 className="font-semibold text-lg mb-4">
+          Sản phẩm
+        </h2>
+
+        <div className="space-y-4">
+          {selectedOrderDetail.items?.map((item: any) => (
+            <div
+              key={item.id}
+              className="flex gap-5 border rounded-2xl p-5"
+            >
+              <img
+                src={getAbsoluteImageUrl(
+                  item.product?.images?.[0]
+                )}
+                className="w-28 h-28 object-cover rounded-xl border"
+                alt={item.product?.name}
+              />
+
+              <div className="flex-1">
+
+                <h3 className="font-semibold text-lg">
+                  {item.product?.name}
+                </h3>
+
+                <div className="flex gap-3 mt-3 flex-wrap">
+
+                  {item.color && (
+                    <span className="px-4 py-1.5 bg-gray-100 rounded-full text-sm">
+                      Màu: <b>{item.color}</b>
+                    </span>
+                  )}
+
+                  {item.size && (
+                    <span className="px-4 py-1.5 bg-gray-100 rounded-full text-sm">
+                      Size: <b>{item.size}</b>
+                    </span>
+                  )}
+
+                  {item.product?.is_bulky && (
+                    <span className="px-4 py-1.5 bg-orange-100 text-orange-600 rounded-full text-sm font-semibold">
+                      ⚠ Hàng cồng kềnh
+                    </span>
+                  )}
+
+                </div>
+
+                <p className="mt-4 text-sm text-gray-600">
+                  Số lượng: <b>{item.quantity}</b>
+                </p>
+
+                {/* NOTE */}
+                {item.note && (
+                  <div className="mt-4 rounded-xl border border-orange-200 bg-orange-50 px-4 py-3">
+                    <p className="text-sm font-semibold text-orange-700 mb-1">
+                      Ghi chú
+                    </p>
+
+                    <p className="text-sm text-gray-700 leading-relaxed">
+                      {item.note}
+                    </p>
                   </div>
-                </CardContent>
-              </Card>
-            </div>
-          )}
+                )}
 
+              </div>
+
+              <div className="text-right">
+                <p className="text-xl font-bold text-red-600">
+                  {formatMoney(
+                    item.price_at_buy * item.quantity
+                  )}
+                </p>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        <Separator className="my-8" />
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+
+          <div>
+           <h3 className="font-semibold mb-3">
+  Thông tin nhận hàng
+</h3>
+
+<div className="bg-gray-50 p-4 rounded-xl space-y-3">
+
+  <p className="leading-relaxed">
+    {selectedOrderDetail.shipping_address}
+  </p>
+
+  {(selectedOrderDetail.distance_km ||
+    selectedOrderDetail.estimated_delivery_time) && (
+    <div className="flex flex-wrap gap-3 pt-2">
+
+      {selectedOrderDetail.distance_km && (
+        <span className="px-4 py-2 bg-blue-100 text-blue-700 rounded-full text-sm font-medium">
+          📍 {selectedOrderDetail.distance_km.toFixed(1)} km
+        </span>
+      )}
+
+      {selectedOrderDetail.estimated_delivery_time && (
+        <span className="px-4 py-2 bg-green-100 text-green-700 rounded-full text-sm font-medium">
+          🚚 {selectedOrderDetail.estimated_delivery_time}
+        </span>
+      )}
+
+    </div>
+  )}
+
+</div>
+          </div>
+
+          <div>
+            <h3 className="font-semibold mb-3">
+              Thanh toán
+            </h3>
+
+            <div className="bg-gray-50 p-4 rounded-xl space-y-3">
+
+              <div className="flex justify-between">
+                <span className="text-gray-600">
+                  Phương thức
+                </span>
+
+                <b>
+                  {selectedOrderDetail.payment_method}
+                </b>
+              </div>
+
+              <div className="flex justify-between">
+                <span className="text-gray-600">
+                  Trạng thái
+                </span>
+
+                <b>
+                  {selectedOrderDetail.payment_status === 'PAID'
+                    ? 'Đã thanh toán'
+                    : 'Chưa thanh toán'}
+                </b>
+              </div>
+
+              <Separator />
+
+              <div className="flex justify-between text-lg font-semibold">
+                <span>Tổng tiền</span>
+
+                <span className="text-red-600">
+                  {formatMoney(
+                    selectedOrderDetail.total_amount
+                  )}
+                </span>
+              </div>
+
+            </div>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  </div>
+)}
           {/* Products Tab */}
           {activeTab === 'products' && (
             <div className="space-y-6">
@@ -1098,11 +1577,11 @@ export default function SellerDashboard() {
                         />
                       </div>
 
-                      <div className="space-y-2 md:col-span-2">
+                      {/* <div className="space-y-2 md:col-span-2">
                         <label className="text-sm text-gray-600">Danh mục</label>
                         <select
                           required
-                          value={productForm.category_id}
+                         value={productForm.category_id || ''}
                           onChange={(event) =>
                             setProductForm((prev) => ({ ...prev, category_id: event.target.value }))
                           }
@@ -1115,11 +1594,30 @@ export default function SellerDashboard() {
                             </option>
                           ))}
                         </select>
+                      </div> */}
+                      <div className="space-y-2 md:col-span-2">
+                        <label className="text-sm text-gray-600">Danh mục</label>
+                        <select
+                          required
+                          value={productForm.category_id || ''}
+                          onChange={(event) =>
+                            setProductForm((prev) => ({ ...prev, category_id: event.target.value }))
+                          }
+                          className="w-full px-3 py-2 border rounded-lg bg-white"
+                        >
+                          <option value="">Chọn danh mục</option>
+                          {categories.map((category) => (
+                            /* Sửa chỗ key và value để bao quát cả id và _id */
+                            <option key={category.id || (category as any)._id} value={category.id || (category as any)._id}>
+                              {category.name}
+                            </option>
+                          ))}
+                        </select>
                       </div>
 
                       <div className="space-y-2 md:col-span-2">
                         <div className="flex items-center justify-between">
-                          <label className="text-sm text-gray-600">Biến thể (Màu sắc, Size, Giá, Tồn kho)</label>
+                          <label className="text-sm text-gray-600">Biến thể (Màu sắc, Size(Loai), Giá, Tồn kho)</label>
                           <Button type="button" variant="outline" size="sm" onClick={addVariant}>
                             + Thêm biến thể
                           </Button>
@@ -1129,13 +1627,13 @@ export default function SellerDashboard() {
                           {productVariants.map((variant, index) => (
                             <div key={`variant-row-${index}`} className="grid grid-cols-1 md:grid-cols-12 gap-2">
                               <input
-                                value={variant.color}
+                                value={variant.color || ''}
                                 onChange={(event) => updateVariant(index, 'color', event.target.value)}
                                 className="md:col-span-2 px-3 py-2 border rounded-lg"
                                 placeholder="Màu sắc"
                               />
                               <input
-                                value={variant.size}
+                              value={variant.size || ''}
                                 onChange={(event) => updateVariant(index, 'size', event.target.value)}
                                 className="md:col-span-2 px-3 py-2 border rounded-lg"
                                 placeholder="Size"
@@ -1151,7 +1649,7 @@ export default function SellerDashboard() {
                                 />
                                 {(variantImagePreviews[index] || variant.image_url) && (
                                   <img
-                                    src={variantImagePreviews[index] || variant.image_url}
+                                    src={variantImagePreviews[index] || getAbsoluteImageUrl(variant.image_url)}
                                     alt="preview"
                                     className="size-10 rounded border object-cover"
                                   />
@@ -1190,7 +1688,7 @@ export default function SellerDashboard() {
                         </div>
                       </div>
 
-                      <div className="space-y-2 md:col-span-2">
+                      {/* <div className="space-y-2 md:col-span-2">
                         <div className="flex items-center justify-between">
                           <label className="text-sm text-gray-600">Thông số kỹ thuật</label>
                           <Button type="button" variant="outline" size="sm" onClick={addSpecification}>
@@ -1223,7 +1721,7 @@ export default function SellerDashboard() {
                             </div>
                           ))}
                         </div>
-                      </div>
+                      </div> */}
 
                       <div className="space-y-2">
                         <label className="text-sm text-gray-600">Tình trạng</label>
@@ -1241,32 +1739,62 @@ export default function SellerDashboard() {
                           <option value="USED">Đã qua sử dụng</option>
                         </select>
                       </div>
+                      <div className="space-y-2 flex items-center gap-2 pt-6">
+                        <input
+                          type="checkbox"
+                          id="is_bulky"
+                          checked={productForm.is_bulky}
+                          onChange={(event) =>
+                            setProductForm((prev) => ({ ...prev, is_bulky: event.target.checked }))
+                          }
+                          className="size-4 rounded text-red-500 focus:ring-red-400"
+                        /> 
+                        <label htmlFor="is_bulky" className="text-sm text-gray-600 select-none cursor-pointer font-medium">
+                          Hàng cồng kềnh (is_bulky)
+                        </label> 
+                      </div> 
 
                       <div className="space-y-2">
-                        <label className="text-sm text-gray-600">Ảnh sản phẩm (tùy chọn)</label>
-                        <input
-                          type="file"
-                          accept="image/*"
-                          multiple
-                          onChange={(event) =>
-                            setProductForm((prev) => ({
-                              ...prev,
-                              images: event.target.files ? Array.from(event.target.files) : [],
-                            }))
-                          }
-                          className="w-full px-3 py-2 border rounded-lg"
-                        />
+  <label className="text-sm text-gray-600">Ảnh sản phẩm (tùy chọn)</label>
+  <input
+    type="file"
+    accept="image/*"
+    multiple
+    onChange={(event) =>
+      setProductForm((prev) => ({
+        ...prev,
+        // ĐÂY LÀ CHỖ ĐANG BỊ LỖI GHI ĐÈ ẢNH
+        images: event.target.files ? Array.from(event.target.files) : [], 
+      }))
+    }
+    className="w-full px-3 py-2 border rounded-lg"
+  />
                         {productForm.images.length > 0 && (
-                          <div className="flex flex-wrap gap-2 pt-1">
-                            {productImagePreviews.map((previewUrl, index) => (
-                              <img
-                                key={`preview-${index}`}
-                                src={previewUrl}
-                                alt={`preview-${index}`}
-                                className="size-14 rounded border object-cover"
-                              />
-                            ))}
-                          </div>
+                          // <div className="flex flex-wrap gap-2 pt-1">
+                          //   {productImagePreviews.map((previewUrl, index) => (
+                          //     <img
+                          //       key={`preview-${index}`}
+                          //       src={previewUrl}
+                          //       alt={`preview-${index}`}
+                          //       className="size-14 rounded border object-cover"
+                          //     />
+                          //   ))}
+                          // </div>
+                          <div className="grid grid-cols-3 gap-3 mt-3">
+  {productImagePreviews.map((image, index) => (
+    <div key={index}>
+      <img
+        src={
+          image.startsWith('blob:')
+            ? image
+            : getAbsoluteImageUrl(image)
+        }
+        alt={`preview-${index}`}
+        className="w-full h-24 object-cover rounded border"
+      />
+    </div>
+  ))}
+</div>
                         )}
                       </div>
 
@@ -1287,8 +1815,8 @@ export default function SellerDashboard() {
                             if (isModerationError) setIsModerationError(false); // Tắt cờ lỗi khi user sửa
                           }}
                           className={`w-full px-3 py-2 border rounded-lg transition-colors ${isModerationError
-                              ? 'border-red-500 ring-2 ring-red-200 bg-red-50'
-                              : 'border-gray-300 focus:border-red-400'
+                            ? 'border-red-500 ring-2 ring-red-200 bg-red-50'
+                            : 'border-gray-300 focus:border-red-400'
                             }`}
                           placeholder="Mô tả ngắn về sản phẩm"
                         />
@@ -1333,7 +1861,7 @@ export default function SellerDashboard() {
                           className="flex items-center gap-4 p-4 border rounded-lg hover:bg-gray-50 transition-all"
                         >
                           <img
-                            src={product.images?.[0] || 'https://placehold.co/200x200?text=No+Image'}
+                            src={getAbsoluteImageUrl(product.images?.[0]) || 'https://placehold.co/200x200?text=No+Image'}
                             alt={product.name}
                             className="size-16 object-cover rounded-lg"
                           />
@@ -1350,6 +1878,14 @@ export default function SellerDashboard() {
                               <span>Kho: <span className="text-gray-900 font-medium">{product.stock_quantity}</span></span>
                               <span>Danh mục: <span className="text-gray-900 font-medium">{getCategoryName(product.category_id)}</span></span>
                             </div>
+                            {(product.size || product.color || product.type || product.is_bulky) && (
+                              <div className="flex flex-wrap gap-2 mt-2">
+                                {product.size && <Badge variant="secondary" className="text-[11px] bg-gray-100">Size: {product.size}</Badge>}
+                                {product.color && <Badge variant="secondary" className="text-[11px] bg-gray-100">Màu: {product.color}</Badge>}
+                                {product.type && <Badge variant="secondary" className="text-[11px] bg-gray-100">Loại: {product.type}</Badge>}
+                                {product.is_bulky && <Badge className="bg-amber-100 text-amber-800 border-amber-300 text-[10px] hover:bg-amber-100">Cồng kềnh</Badge>}
+                              </div>
+                            )}
                           </div>
                           <div className="flex items-center gap-2">
                             {getStatusBadge(product.status)}
@@ -1421,8 +1957,8 @@ export default function SellerDashboard() {
                                 type="button"
                                 onClick={() => setShopCategoryFilter(tab.id)}
                                 className={`shrink-0 rounded-full border px-4 py-1.5 text-sm transition-all ${shopCategoryFilter === tab.id
-                                    ? 'border-red-500 bg-red-50 text-red-600'
-                                    : 'border-gray-200 text-gray-600 hover:border-gray-300 hover:bg-gray-50'
+                                  ? 'border-red-500 bg-red-50 text-red-600'
+                                  : 'border-gray-200 text-gray-600 hover:border-gray-300 hover:bg-gray-50'
                                   }`}
                               >
                                 {tab.label}
@@ -1450,7 +1986,7 @@ export default function SellerDashboard() {
                                 onClick={() => navigate(`/product/${product.id}`)}
                               >
                                 <img
-                                  src={product.images?.[0] || 'https://placehold.co/400x400?text=No+Image'}
+                                  src={getAbsoluteImageUrl(product.images?.[0]) || 'https://placehold.co/400x400?text=No+Image'}
                                   alt={product.name}
                                   className="h-48 w-full object-cover"
                                 />
@@ -1476,128 +2012,8 @@ export default function SellerDashboard() {
 
           {/* Orders Tab */}
           {activeTab === 'orders' && (
-            <div className="space-y-6">
-              <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                <div>
-                  <h1 className="text-2xl font-bold text-gray-900">Quản lý đơn hàng</h1>
-                  <p className="text-gray-500">Bạn có tổng cộng {orders.length} đơn hàng</p>
-                </div>
-                <div className="relative w-full md:w-80">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-gray-400" />
-                  <input
-                    type="text"
-                    placeholder="Tìm mã đơn, địa chỉ..."
-                    className="w-full pl-10 pr-4 py-2 border rounded-xl focus:ring-2 focus:ring-red-500 transition-all outline-none"
-                    value={orderSearchTerm}
-                    onChange={(e) => setOrderSearchTerm(e.target.value)}
-                  />
-                </div>
-              </div>
-
-              {ordersLoading ? (
-                <div className="flex items-center justify-center py-20">
-                  <div className="animate-spin size-10 border-4 border-red-500 border-t-transparent rounded-full" />
-                </div>
-              ) : filteredOrders.length === 0 ? (
-                <Card className="py-20">
-                  <CardContent className="flex flex-col items-center justify-center">
-                    <div className="size-20 bg-gray-100 rounded-full flex items-center justify-center mb-4">
-                      <ShoppingCart className="size-10 text-gray-300" />
-                    </div>
-                    <h3 className="text-lg font-medium text-gray-900">Không tìm thấy đơn hàng</h3>
-                    <p className="text-gray-500 mt-1">Shop của bạn hiện chưa có đơn hàng nào.</p>
-                  </CardContent>
-                </Card>
-              ) : (
-                <div className="grid gap-4">
-                  {filteredOrders.map((order) => (
-                    <Card key={order.id} className="overflow-hidden border-none shadow-sm hover:shadow-md transition-shadow">
-                      <div className="bg-gray-50/80 px-6 py-3 border-b flex flex-wrap items-center justify-between gap-4">
-                        <div className="flex items-center gap-3">
-                          <span className="font-bold text-gray-900">#{order.id.slice(0, 8).toUpperCase()}</span>
-                          <Separator orientation="vertical" className="h-4" />
-                          <span className="text-sm text-gray-500">{new Date(order.created_at).toLocaleString('vi-VN')}</span>
-                          {getStatusBadge(order.order_status)}
-                        </div>
-                        <div className="flex items-center gap-4">
-                          <span className="text-sm text-gray-500">Thanh toán: <span className="font-medium text-gray-900">{order.payment_method}</span></span>
-                          <Badge variant={order.payment_status === 'PAID' ? 'default' : 'outline'} className={order.payment_status === 'PAID' ? 'bg-green-500 text-white border-transparent' : ''}>
-                            {order.payment_status === 'PAID' ? 'Đã thanh toán' : 'Chưa thanh toán'}
-                          </Badge>
-                        </div>
-                      </div>
-
-                      <CardContent className="p-4">
-                        <div className="flex flex-col lg:flex-row gap-6">
-                          {/* Products Info */}
-                          <div className="flex-1 space-y-3">
-                            {order.items.map((item) => (
-                              <div key={item.id} className="flex gap-3 p-2 rounded-lg border border-gray-50 bg-white">
-                                <div className="size-12 rounded overflow-hidden bg-gray-50 flex-shrink-0">
-                                  {item.product?.images?.[0] ? (
-                                    <img src={item.product.images[0]} alt={item.product.name} className="w-full h-full object-cover" />
-                                  ) : (
-                                    <div className="w-full h-full flex items-center justify-center text-xl text-gray-300">📦</div>
-                                  )}
-                                </div>
-                                <div className="flex-1 min-w-0">
-                                  <h4 className="text-sm font-medium text-gray-900 truncate">{item.product?.name || 'Sản phẩm'}</h4>
-                                  <div className="flex justify-between items-center mt-1">
-                                    <p className="text-xs text-gray-500">Số lượng: {item.quantity}</p>
-                                    <p className="text-sm font-semibold text-red-500">{(item.price_at_buy || 0).toLocaleString('vi-VN')}₫</p>
-                                  </div>
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-
-                          {/* Shipping & Summary */}
-                          <div className="lg:w-80 flex flex-col justify-between border-t lg:border-t-0 lg:border-l lg:pl-6 pt-4 lg:pt-0">
-                            <div className="space-y-3">
-                              <div className="bg-gray-50 p-3 rounded-lg border border-gray-100">
-                                <h5 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Địa chỉ nhận hàng</h5>
-                                <p className="text-sm text-gray-700 line-clamp-2">{order.shipping_address}</p>
-                              </div>
-                              <div className="flex justify-between items-center">
-                                <span className="text-sm text-gray-500">Tổng cộng:</span>
-                                <span className="text-lg font-bold text-red-600">{order.total_amount.toLocaleString('vi-VN')}₫</span>
-                              </div>
-                            </div>
-
-                            <div className="flex flex-wrap gap-2 mt-4">
-                              {order.order_status === 'PENDING' && (
-                                <>
-                                  <Button size="sm" className="bg-red-500 hover:bg-red-600" onClick={() => handleUpdateOrderStatus(order.id, 'PICKUP')}>
-                                    <Package className="size-4 mr-1.5" /> Xác nhận
-                                  </Button>
-                                  <Button size="sm" variant="outline" className="text-red-500 border-red-200 hover:bg-red-50" onClick={() => handleCancelOrder(order.id)}>
-                                    Hủy
-                                  </Button>
-                                </>
-                              )}
-                              {order.order_status === 'PICKUP' && (
-                                <Button size="sm" className="bg-blue-500 hover:bg-blue-600" onClick={() => handleUpdateOrderStatus(order.id, 'SHIPPING')}>
-                                  <Truck className="size-4 mr-1.5" /> Giao hàng
-                                </Button>
-                              )}
-                              {order.order_status === 'SHIPPING' && (
-                                <Button size="sm" className="bg-green-500 hover:bg-green-600" onClick={() => handleUpdateOrderStatus(order.id, 'DELIVERED')}>
-                                  <CheckCircle className="size-4 mr-1.5" /> Hoàn tất
-                                </Button>
-                              )}
-                              <Button size="sm" variant="ghost" onClick={() => navigate(`/order/${order.id}`)}>
-                                <Eye className="size-4" />
-                              </Button>
-                            </div>
-                          </div>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  ))}
-                </div>
-              )}
-            </div>
-          )}
+  <StoreOrdersPage />
+)}
 
           {activeTab === 'customers' && (
             <div className="space-y-6">
@@ -1706,7 +2122,7 @@ export default function SellerDashboard() {
                     onChange={(e) => setReportPeriod(e.target.value as SellerReportPeriod)}
                     className="rounded-md border border-gray-200 px-3 py-2 text-sm min-w-[180px]"
                   >
-                    <option value="day">Trong ngày</option>
+                    <option value="date">Trong ngày</option>
                     <option value="month">Trong tháng</option>
                     <option value="quarter">Trong quý</option>
                     <option value="year">Trong năm</option>
@@ -1806,29 +2222,58 @@ export default function SellerDashboard() {
                     </CardContent>
                   </Card>
 
-                  <Card>
-                    <CardHeader>
-                      <CardTitle>Chi tiết phí và số đơn</CardTitle>
-                    </CardHeader>
-                    <CardContent className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                      <div className="rounded-lg border border-gray-200 p-4">
-                        <p className="text-sm text-gray-500">Phí cố định</p>
-                        <p className="font-semibold mt-1">{formatMoney(sellerReport.summary.fixedFee)}</p>
-                      </div>
-                      <div className="rounded-lg border border-gray-200 p-4">
-                        <p className="text-sm text-gray-500">Phí thanh toán</p>
-                        <p className="font-semibold mt-1">{formatMoney(sellerReport.summary.paymentFee)}</p>
-                      </div>
-                      <div className="rounded-lg border border-gray-200 p-4">
-                        <p className="text-sm text-gray-500">Phí dịch vụ</p>
-                        <p className="font-semibold mt-1">{formatMoney(sellerReport.summary.serviceFee)}</p>
-                      </div>
-                      <div className="rounded-lg border border-gray-200 p-4">
-                        <p className="text-sm text-gray-500">Tổng đơn tính</p>
-                        <p className="font-semibold mt-1">{sellerReport.orderCount.toLocaleString('vi-VN')}</p>
-                      </div>
-                    </CardContent>
-                  </Card>
+                  {/* Chi tiết phí và số đơn - Đã cân chỉnh đẹp */}
+<Card>
+  <CardHeader>
+    <CardTitle>Chi tiết phí và số đơn</CardTitle>
+  </CardHeader>
+  <CardContent>
+    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+      <div className="bg-white border rounded-2xl p-6 text-center hover:shadow-md transition-all">
+        <p className="text-sm text-gray-500 mb-2">Phí cố định</p>
+        <p className="text-3xl font-bold text-gray-800">
+          {formatMoney(sellerReport?.summary?.fixedFee || 0)}
+        </p>
+      </div>
+
+      <div className="bg-white border rounded-2xl p-6 text-center hover:shadow-md transition-all">
+        <p className="text-sm text-gray-500 mb-2">Phí vận chuyển</p>
+        <p className="text-3xl font-bold text-blue-600">
+          {formatMoney(sellerReport?.summary?.shippingFee || 0)}
+        </p>
+      </div>
+
+      <div className="bg-white border rounded-2xl p-6 text-center hover:shadow-md transition-all">
+        <p className="text-sm text-gray-500 mb-2">Phí thanh toán</p>
+        <p className="text-3xl font-bold text-orange-600">
+          {formatMoney(sellerReport?.summary?.paymentFee || 0)}
+        </p>
+      </div>
+
+      <div className="bg-white border rounded-2xl p-6 text-center hover:shadow-md transition-all">
+        <p className="text-sm text-gray-500 mb-2">Phí dịch vụ</p>
+        <p className="text-3xl font-bold text-purple-600">
+          {formatMoney(sellerReport?.summary?.serviceFee || 0)}
+        </p>
+      </div>
+
+      {/* Số đơn - chiếm full width dưới cùng */}
+      <div className="lg:col-span-4 bg-gradient-to-r from-red-50 to-rose-50 border border-red-100 rounded-2xl p-6 mt-2">
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="text-sm text-gray-600">Tổng số đơn hàng được tính</p>
+            <p className="text-4xl font-bold text-red-600 mt-1">
+              {sellerReport?.orderCount?.toLocaleString('vi-VN') || '0'}
+            </p>
+          </div>
+          <div className="text-5xl opacity-20">
+            📦
+          </div>
+        </div>
+      </div>
+    </div>
+  </CardContent>
+</Card>
                 </>
               )}
             </div>
@@ -1838,7 +2283,9 @@ export default function SellerDashboard() {
             <div className="space-y-6">
               <div>
                 <h1 className="text-2xl mb-1">Cài đặt</h1>
-                <p className="text-gray-500">Nội dung đang được phát triển</p>
+                {activeTab === 'settings' && (
+                  <StoreSettingsPage />
+                )}
               </div>
 
               <Card>
@@ -1918,4 +2365,5 @@ export default function SellerDashboard() {
       )}
     </div>
   );
+
 }

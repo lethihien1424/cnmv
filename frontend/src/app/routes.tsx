@@ -1,37 +1,70 @@
-// D:\CongNgheMoi-hien\CongNgheMoi\frontend\src\app\router.tsx
+//frontend/src/app/routes.tsx
 import { createBrowserRouter } from 'react-router';
+
 import LoginPage from './pages/LoginPage';
 import RegisterCustomerPage from './pages/RegisterCustomerPage';
 import RegisterBusinessPage from './pages/RegisterBusinessPage';
+
 import AdminDashboard from './pages/AdminDashboard';
 import LandingPage from './pages/LandingPage';
 import ProductDetailPage from './pages/ProductDetailPage';
+
 import SellerOnboardingPage from './pages/SellerOnboardingPage';
 import SellerDashboard from './pages/SellerDashboard';
 import FlashSaleManagement from './pages/FlashSaleManagement';
+
 import ShopPage from './pages/ShopPage';
 import SearchResultsPage from './pages/SearchResultsPage';
+
 import CustomerProfilePage from './pages/CustomerProfilePage';
 import EditProfilePage from './pages/EditProfilePage';
+
 import MyOrdersPage from './pages/MyOrdersPage';
-import OrderHistoryPage from './pages/OrderHistoryPage'; // ← THÊM
+import OrderHistoryPage from './pages/OrderHistoryPage';
+import OrderDetailPage from './pages/OrderDetailPage';
+
+import MyWalletPage from './pages/MyWalletPage';
+import WalletTransactionDetailPage from './pages/WalletTransactionDetailPage';
 import ProtectedRoute from './components/ProtectedRoute';
+
 import CartDrawerPage from './pages/CartPage';
 import CheckoutPage from './pages/CheckoutPage';
+
 import StoreOrdersPage from './pages/StoreOrdersPage';
+import StoreSettingsPage from './pages/StoreSettingsPage';
 
 export const router = createBrowserRouter([
-  { path: '/login',             Component: LoginPage },
+  { path: '/login', Component: LoginPage },
+
   { path: '/register/customer', Component: RegisterCustomerPage },
+
   { path: '/register/business', Component: RegisterBusinessPage },
-  { path: '/',                  Component: LandingPage },
-  { path: '/product/:id',       Component: ProductDetailPage },
-  { path: '/shop/:storeId',     Component: ShopPage },
-  { path: '/search',            Component: SearchResultsPage },
-  { path: '/stores',            Component: SearchResultsPage },
-  { path: '/cart',              Component: CartDrawerPage },
-  { path: '/checkout', Component: CheckoutPage },   // ← THÊM ROUTE NÀY
-  // ── Protected routes ──────────────────────────────────────────────────────
+
+  { path: '/', Component: LandingPage },
+
+  { path: '/product/:id', Component: ProductDetailPage },
+
+  { path: '/shop/:storeId', Component: ShopPage },
+
+  { path: '/search', Component: SearchResultsPage },
+
+  { path: '/stores', Component: SearchResultsPage },
+
+  { path: '/cart', Component: CartDrawerPage },
+
+  {
+    path: '/checkout',
+    element: (
+      <ProtectedRoute allowedRoles={['customer', 'business']}>
+        <CheckoutPage />
+      </ProtectedRoute>
+    ),
+  },
+
+  // ─────────────────────────────────────────────────────────
+  // ORDERS
+  // ─────────────────────────────────────────────────────────
+
   {
     path: '/orders',
     element: (
@@ -41,7 +74,17 @@ export const router = createBrowserRouter([
     ),
   },
 
-  // ← ROUTE MỚI: Lịch sử mua hàng
+  // CHI TIẾT ĐƠN HÀNG
+  {
+    path: '/orders/:id',
+    element: (
+      <ProtectedRoute allowedRoles={['customer', 'business']}>
+        <OrderDetailPage />
+      </ProtectedRoute>
+    ),
+  },
+
+  // LỊCH SỬ ĐƠN HÀNG
   {
     path: '/orders/history',
     element: (
@@ -51,6 +94,31 @@ export const router = createBrowserRouter([
     ),
   },
 
+  // ─────────────────────────────────────────────────────────
+  // WALLET
+  // ─────────────────────────────────────────────────────────
+
+  {
+    path: '/my-wallet',
+    element: (
+      <ProtectedRoute allowedRoles={['customer', 'business']}>
+        <MyWalletPage />
+      </ProtectedRoute>
+    ),
+  },
+
+  {
+  path: '/my-wallet/transaction/:id',
+  element: (
+    <ProtectedRoute allowedRoles={['customer', 'business']}>
+      <WalletTransactionDetailPage />
+    </ProtectedRoute>
+  ),
+},
+  // ─────────────────────────────────────────────────────────
+  // SELLER
+  // ─────────────────────────────────────────────────────────
+
   {
     path: '/seller/onboarding',
     element: (
@@ -59,14 +127,7 @@ export const router = createBrowserRouter([
       </ProtectedRoute>
     ),
   },
-  {
-    path: '/admin',
-    element: (
-      <ProtectedRoute allowedRoles={['admin']}>
-        <AdminDashboard />
-      </ProtectedRoute>
-    ),
-  },
+
   {
     path: '/seller/dashboard',
     element: (
@@ -75,6 +136,7 @@ export const router = createBrowserRouter([
       </ProtectedRoute>
     ),
   },
+
   {
     path: '/seller/orders',
     element: (
@@ -83,6 +145,16 @@ export const router = createBrowserRouter([
       </ProtectedRoute>
     ),
   },
+
+  {
+    path: '/seller/settings',
+    element: (
+      <ProtectedRoute allowedRoles={['customer', 'business']}>
+        <StoreSettingsPage />
+      </ProtectedRoute>
+    ),
+  },
+
   {
     path: '/seller/flash-sale',
     element: (
@@ -91,6 +163,11 @@ export const router = createBrowserRouter([
       </ProtectedRoute>
     ),
   },
+
+  // ─────────────────────────────────────────────────────────
+  // CUSTOMER
+  // ─────────────────────────────────────────────────────────
+
   {
     path: '/customer/profile',
     element: (
@@ -99,6 +176,7 @@ export const router = createBrowserRouter([
       </ProtectedRoute>
     ),
   },
+
   {
     path: '/customer/edit-profile',
     element: (
@@ -107,6 +185,7 @@ export const router = createBrowserRouter([
       </ProtectedRoute>
     ),
   },
+
   {
     path: '/profile/edit',
     element: (
@@ -115,14 +194,24 @@ export const router = createBrowserRouter([
       </ProtectedRoute>
     ),
   },
+
+  // ─────────────────────────────────────────────────────────
+  // ADMIN
+  // ─────────────────────────────────────────────────────────
+
   {
-    path: '/checkout',
+    path: '/admin',
     element: (
-      <ProtectedRoute allowedRoles={['customer', 'business']}>
-        <CheckoutPage />
+      <ProtectedRoute allowedRoles={['admin']}>
+        <AdminDashboard />
       </ProtectedRoute>
     ),
   },
+
+  // ─────────────────────────────────────────────────────────
+  // 404
+  // ─────────────────────────────────────────────────────────
+
   {
     path: '*',
     element: (

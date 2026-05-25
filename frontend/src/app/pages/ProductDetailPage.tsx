@@ -1,3 +1,4 @@
+//D:\CNM_new2\CongNgheMoi\frontend\src\app\pages\ProductDetailPage.tsx
 import React, { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
 import { useAuth } from '../contexts/AuthContext';
@@ -11,7 +12,13 @@ import { ImageWithFallback } from '../components/figma/ImageWithFallback';
 import StoreHeader from '../components/StoreHeader';
 import StoreFooter from '../components/StoreFooter';
 import ChatBox from '../components/ChatBox';
-import { getProductDetail, getProducts, parseDescriptionMetadata, type Product } from '../services/productService';
+import {
+  getProductDetail,
+  getProducts,
+  getCategories,
+  parseDescriptionMetadata,
+  type Product
+} from '../services/productService';
 import { getReviewsByProduct, type Review } from '../services/reviewService';
 import { cartAPI } from '../services/cartService';
 
@@ -44,13 +51,24 @@ export default function ProductDetailPage() {
   const [searchValue, setSearchValue] = useState('');
   const [productData, setProductData] = useState<Product | null>(null);
   const [relatedProducts, setRelatedProducts] = useState<Product[]>([]);
+  const [categories, setCategories] = useState<any[]>([]);
   const [reviews, setReviews] = useState<Review[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isChatOpen, setIsChatOpen] = useState(false);
   const [cartCount, setCartCount] = useState(0);
 
-  const fallbackProduct = {
+const categoryName = useMemo(() => {
+    if (!productData) return "Danh mục";
+
+    const category = categories.find(
+      // Chuyển thành String để so sánh chính xác tuyệt đối mọi loại ID
+      (c) => String(c.id) === String(productData.category_id) 
+    );
+
+    return category?.name || "Danh mục";
+  }, [categories, productData]);
+  const fallbackProduct: Product = {
     id: 'fallback-product',
     store_id: 'fallback-store',
     category_id: null,
@@ -83,8 +101,20 @@ export default function ProductDetailPage() {
     name: 'iPhone 15 Pro Max 256GB - Chính hãng VN/A',
     price: 29990000,
   };
+useEffect(() => {
+  const loadCategories = async () => {
+    try {
+      const data = await getCategories();
+      setCategories(data);
+    } catch (err) {
+      console.error(err);
+    }
+  };
 
+  loadCategories();
+}, []);
   useEffect(() => {
+    
     const loadProduct = async () => {
       if (!id) {
         setProductData(fallbackProduct);
@@ -167,20 +197,37 @@ export default function ProductDetailPage() {
     }
     return variant.image_url;
   };
-
   const galleryImages = useMemo(() => {
-    const fromProductImages = (product.images || []).filter(Boolean);
-    const fromVariantImages = variants
-      .map((variant) => resolveVariantImage(variant))
-      .filter((image): image is string => Boolean(image));
+    // Hàm bổ trợ biến đường dẫn tương đối thành tuyệt đối chứa domain Backend
+    const getAbsoluteUrl = (url: string) => {
+      if (!url) return '';
+      if (url.startsWith('http://') || url.startsWith('https://') || url.startsWith('blob:')) {
+        return url;
+      }
+      // Đảm bảo map đúng port 5000 Backend của bạn
+      return `http://localhost:5000${url.startsWith('/') ? '' : '/'}${url}`;
+    };
 
+    // Chuẩn hóa ảnh sản phẩm chính
+    const fromProductImages = (product.images || [])
+      .filter(Boolean)
+      .map((img) => getAbsoluteUrl(img));
+    
+    // Chuẩn hóa ảnh từ các biến thể (variants)
+    const fromVariantImages = variants
+      .map((variant) => variant.image_url || (variant as any).image) 
+      .filter((image): image is string => Boolean(image))
+      .map((img) => getAbsoluteUrl(img));
+
+    // Gộp lại và loại bỏ trùng lặp bằng Set
     return Array.from(new Set([...fromProductImages, ...fromVariantImages]));
   }, [product.images, variants]);
-
-  const colorOptions = useMemo(
-    () => Array.from(new Set(variants.map((variant) => variant.color))),
-    [variants],
-  );
+  
+  // const colorOptions = useMemo(
+  //   () => Array.from(new Set(variants.map((variant) => variant.color))),
+  //   [variants],
+  // );
+  
 
   const getVariantSizes = (rawSize: string) => {
     return rawSize
@@ -200,29 +247,69 @@ export default function ProductDetailPage() {
     return map;
   }, [variants]);
 
+  // const sizeOptions = useMemo(() => {
+  //   const sizes = variants
+  //     .filter((variant) => (selectedColor ? variant.color === selectedColor : true))
+  //     .flatMap((variant) => getVariantSizes(variant.size));
+  // LẤY DANH SÁCH MÀU SẮC (HỖ TRỢ CẢ MỚI VÀ CŨ CHƯA LƯU LẠI)
+  const colorOptions = useMemo(() => {
+    // Trường hợp 1: Sản phẩm mới (hoặc đã cập nhật), có chuỗi ở cột product.color
+    if (product && typeof product.color === 'string' && product.color.trim() !== '') {
+      return product.color.split(',').map((c: string) => c.trim()).filter(Boolean);
+    }
+
+
+    // Trường hợp 2: Sản phẩm cũ chưa cập nhật (product.color bị trống) -> Bóc từ mảng variants ra
+    if (parsedMetadata.variants.length > 0 && variants && variants.length > 0) {
+      const colorsFromVariants = variants
+        .map((v) => v.color || (v as any).color_name)
+        .filter((c): c is string => typeof c === 'string' && c.trim() !== '');
+
+      if (colorsFromVariants.length > 0) {
+        // Sử dụng Set để loại bỏ các màu bị lặp (Ví dụ nhiều size chung 1 màu Đen)
+        return Array.from(new Set(colorsFromVariants));
+      }
+    }
+
+    return [];
+  }, [product, variants, parsedMetadata.variants]);
+
+  // LẤY DANH SÁCH SIZE (HỖ TRỢ CẢ MỚI VÀ CŨ CHƯA LƯU LẠI)
   const sizeOptions = useMemo(() => {
-    const sizes = variants
-      .filter((variant) => (selectedColor ? variant.color === selectedColor : true))
-      .flatMap((variant) => getVariantSizes(variant.size));
+    // Trường hợp 1: Sản phẩm mới (hoặc đã cập nhật), có chuỗi ở cột product.size
+    if (product && typeof product.size === 'string' && product.size.trim() !== '') {
+      return product.size.split(',').map((s: string) => s.trim()).filter(Boolean);
+    }
 
-    return Array.from(new Set(sizes));
-  }, [selectedColor, variants]);
+    // Trường hợp 2: Sản phẩm cũ chưa cập nhật (product.size bị trống) -> Bóc từ mảng variants ra
+    if (parsedMetadata.variants.length > 0 && variants && variants.length > 0) {
+      const sizesFromVariants = variants
+        .flatMap((v) => {
+          // Nếu size trong variant là chuỗi phân cách dấu phẩy "m,l,xl"
+          if (typeof v.size === 'string') {
+            return v.size.split(',').map((s: string) => s.trim());
+          }
+          return v.size || (v as any).size_name;
+        })
+        .filter((s): s is string => typeof s === 'string' && s.trim() !== '');
 
+      if (sizesFromVariants.length > 0) {
+        // Loại bỏ các size trùng lặp
+        return Array.from(new Set(sizesFromVariants));
+      }
+    }
+    return [];
+  }, [product, variants, parsedMetadata.variants]);
+
+  // Tự động gán lựa chọn mặc định khi dữ liệu cũ được bóc tách xong
   useEffect(() => {
-    if (!selectedColor && colorOptions.length > 0) {
+    if (colorOptions.length > 0 && !selectedColor) {
       setSelectedColor(colorOptions[0]);
     }
-  }, [colorOptions, selectedColor]);
-
-  useEffect(() => {
-    if (sizeOptions.length === 0) {
-      setSelectedSize('');
-      return;
-    }
-    if (!sizeOptions.includes(selectedSize)) {
+    if (sizeOptions.length > 0 && !selectedSize) {
       setSelectedSize(sizeOptions[0]);
     }
-  }, [selectedSize, sizeOptions]);
+  }, [colorOptions, sizeOptions, selectedColor, selectedSize]);
 
   const selectedVariant = useMemo(() => {
     const exactMatch = variants.find(
@@ -234,47 +321,85 @@ export default function ProductDetailPage() {
     return variants.find((variant) => variant.color === selectedColor) || variants[0];
   }, [selectedColor, selectedSize, variants]);
 
-  const handleSelectColor = (color: string) => {
-    setSelectedColor(color);
-    const colorImage = colorImageMap.get(color);
-    if (!colorImage) return;
-    const variantImageIndex = galleryImages.findIndex((image) => image === colorImage);
-    if (variantImageIndex >= 0) setSelectedImage(variantImageIndex);
+ const handleSelectColor = (color: string) => {
+  console.log(">>> Đã bấm chọn màu sắc:", color);
+  setSelectedColor(color);
+
+  // 1. Tìm vị trí (index) của biến thể khớp với màu được chọn trong mảng variants ban đầu
+  const variantIndex = variants.findIndex((v) => {
+    const vColor = String(v.color || (v as any).color_name || '').toLowerCase().trim();
+    return vColor === String(color).toLowerCase().trim();
+  });
+
+  if (variantIndex === -1) return; // Không tìm thấy biến thể nào khớp màu
+
+  const matchedVariant = variants[variantIndex];
+
+  // Hàm phụ lấy tên file cuối cùng để so sánh
+  const getFileName = (url: string) => {
+    if (!url) return '';
+    const parts = url.split('/');
+    return parts[parts.length - 1].toLowerCase().trim();
   };
+
+  // CÁCH 1: Đối chiếu theo tên file ảnh lưu trong biến thể (Nếu có dữ liệu)
+  const variantImgUrl = matchedVariant.image_url || (matchedVariant as any).image;
+  if (variantImgUrl) {
+    const targetVariantFileName = getFileName(variantImgUrl);
+    const targetIndex = galleryImages.findIndex((img) => getFileName(img) === targetVariantFileName);
+
+    if (targetIndex !== -1) {
+      setSelectedImage(targetIndex);
+      console.log("=> Đổi ảnh thành công theo cách 1 (Khớp tên file):", targetIndex);
+      return; 
+    }
+  }
+
+  // CÁCH 2 (DỰ PHÒNG CHẮC CHẮN CHẠY): Nếu biến thể không lưu image_url hoặc tìm không thấy trong Gallery
+  // Hệ thống sẽ lấy ảnh tương ứng trong mảng Gallery theo số thứ tự của biến thể đó
+  if (galleryImages[variantIndex]) {
+    setSelectedImage(variantIndex);
+    console.log("=> Đổi ảnh thành công theo cách 2 (Khớp theo số thứ tự biến thể):", variantIndex);
+    return;
+  }
+
+  // CÁCH 3: Nếu mảng ảnh Gallery quá ít, tự động quay về tấm ảnh đầu tiên của sản phẩm
+  if (galleryImages.length > 0) {
+    setSelectedImage(0);
+    console.log("=> Quay về ảnh mặc định (Cách 3)");
+  }
+};
 
   const displayPrice = Number(selectedVariant?.price || product.price || 0);
   const displayStock = Number(selectedVariant?.stock_quantity || product.stock_quantity || 0);
 
   // ==================== HÀM THÊM VÀO GIỎ HÀNG ====================
   const handleAddToCart = async () => {
-    if (!user) {
-      navigate('/login');
-      return;
-    }
-    if (!selectedVariant) {
-      alert("Vui lòng chọn màu sắc / kích thước!");
-      return;
-    }
+  if (!user) {
+    navigate('/login');
+    return;
+  }
+  if (!selectedVariant) {
+    alert("Vui lòng chọn màu sắc / kích thước!");
+    return;
+  }
 
-    try {
-      await cartAPI.addToCart(
-        product.id,
-        quantity,
-        {
-          color: selectedColor,
-          size: selectedSize,
-          price: selectedVariant.price,
-        }
-      );
+  try {
+    await cartAPI.addToCart(
+      product.id,
+      quantity,
+      selectedSize || null,   // ✅ string
+      selectedColor || null   // ✅ string
+    );
 
-      alert("✅ Đã thêm vào giỏ hàng!");
-      window.dispatchEvent(new Event("cartUpdated"));
-      setCartCount((prev) => prev + quantity);
-    } catch (err: any) {
-      console.error(err);
-      alert("❌ " + (err.message || "Không thể thêm vào giỏ hàng"));
-    }
-  };
+    alert("✅ Đã thêm vào giỏ hàng!");
+    window.dispatchEvent(new Event("cartUpdated"));
+    setCartCount((prev) => prev + quantity);
+  } catch (err: any) {
+    console.error(err);
+    alert("❌ " + (err.message || "Không thể thêm vào giỏ hàng"));
+  }
+};
   // ============================================================
 
   const handleQuantityChange = (type: 'increase' | 'decrease') => {
@@ -333,15 +458,22 @@ export default function ProductDetailPage() {
     navigate('/checkout', {
       state: {
         items: [{
-          product_id: product.id,
-          quantity: quantity,
-          product: {
-            ...product,
-            price: selectedVariant.price || product.price,
-            name: product.name,
-            image_url: resolveVariantImage(selectedVariant) || product.images?.[0]
-          }
-        }],
+  product_id: product.id,
+  quantity: quantity,
+
+  // THÊM 2 DÒNG NÀY
+  size: selectedSize || null,
+  color: selectedColor || null,
+
+  product: {
+    ...product,
+    price: selectedVariant.price || product.price,
+    name: product.name,
+    image_url:
+      resolveVariantImage(selectedVariant) ||
+      product.images?.[0]
+  }
+}],
         fromCart: false
       }
     });
@@ -382,25 +514,34 @@ export default function ProductDetailPage() {
       />
 
       {/* Breadcrumb */}
-      <div className="bg-white border-b">
-        <div className="container mx-auto px-4 py-3">
-          <div className="flex items-center gap-2 text-sm">
-            <Link to="/" className="text-gray-600 hover:text-indigo-600">Trang chủ</Link>
-            <ChevronRight className="size-4 text-gray-400" />
-            <Link to="/" className="text-gray-600 hover:text-indigo-600">Điện tử</Link>
-            <ChevronRight className="size-4 text-gray-400" />
-            <span className="text-gray-900">{product.name}</span>
-          </div>
-        </div>
-      </div>
+      {/* Breadcrumb */}
+<div className="bg-white border-b">
+  <div className="container mx-auto px-4 py-3">
+    <div className="flex items-center gap-2 text-sm">
+      <Link
+        to="/"
+        className="text-gray-600 hover:text-indigo-600"
+      >
+        Trang chủ
+      </Link>
 
-      {errorMessage && (
-        <div className="container mx-auto px-4 py-3">
-          <div className="rounded-lg border border-yellow-300 bg-yellow-50 px-4 py-3 text-sm text-yellow-800">
-            {errorMessage}
-          </div>
-        </div>
-      )}
+      <ChevronRight className="size-4 text-gray-400" />
+
+      <Link
+        to={`/search?category=${product.category_id}`}
+        className="text-gray-600 hover:text-indigo-600"
+      >
+        {categoryName}
+      </Link>
+
+      <ChevronRight className="size-4 text-gray-400" />
+
+      <span className="text-gray-900">
+        {product.name}
+      </span>
+    </div>
+  </div>
+</div>
 
       {/* Main Content */}
       <div className="mx-auto w-full max-w-screen-2xl px-4 py-6">
@@ -412,12 +553,13 @@ export default function ProductDetailPage() {
                 <div className="grid md:grid-cols-2 gap-6">
                   {/* Image Gallery */}
                   <div>
-                    <div className="relative mb-4 bg-gray-50 rounded-lg overflow-hidden group">
+                     <div className="relative mb-4 bg-gray-50 rounded-lg overflow-hidden group">
                       <ImageWithFallback
                         src={galleryImages[selectedImage] || '/src/imports/image.png'}
                         alt={product.name}
-                        className="w-full h-[400px] object-cover"
-                      />
+                       className="w-full h-auto max-h-[600px] object-cover transition-all duration-500 group-hover:scale-105"
+                      /> 
+                  
                       <Button
                         variant="ghost"
                         size="icon"
@@ -438,22 +580,26 @@ export default function ProductDetailPage() {
                         </Badge>
                       )}
                     </div>
-                    <div className="grid grid-cols-5 gap-2">
+                     <div className="grid grid-cols-5 gap-2">
                       {galleryImages.map((image, index) => (
                         <button
                           key={index}
                           onClick={() => setSelectedImage(index)}
-                          className={`border-2 rounded-lg overflow-hidden transition-all ${selectedImage === index ? 'border-indigo-600' : 'border-gray-200 hover:border-gray-300'
-                            }`}
+                          className={`aspect-square border rounded-xl overflow-hidden transition-all bg-gray-50 flex items-center justify-center relative ${
+        selectedImage === index 
+          ? 'border-indigo-600 ring-2 ring-indigo-100 shadow-sm' 
+          : 'border-gray-200 hover:border-gray-400'
+      }`}
                         >
                           <ImageWithFallback
                             src={image}
                             alt={`Product ${index + 1}`}
-                            className="w-full h-16 object-cover"
+                          className="w-full h-full object-cover"
                           />
                         </button>
                       ))}
-                    </div>
+                    </div> 
+                   
                   </div>
 
                   {/* Product Info */}
@@ -477,18 +623,18 @@ export default function ProductDetailPage() {
                       <Separator orientation="vertical" className="h-4" />
                       <span className="text-gray-600">{reviews.length} Đánh giá</span>
                       <Separator orientation="vertical" className="h-4" />
-                      <span className="text-gray-600">567 Đã bán</span>
+                      {/* <span className="text-gray-600">567 Đã bán</span> */}
                     </div>
 
                     {/* Price */}
                     <div className="bg-gray-50 p-4 rounded-lg mb-6">
                       <div className="flex items-center gap-3">
-                        <span className="text-3xl text-red-600">{formatPrice(displayPrice)}</span>
+                       <span className="text-3xl font-bold text-cyan-600">
+                       {formatPrice(displayPrice)}
+                       </span>
                         {displayPrice > 0 && (
                           <>
-                            <span className="text-lg text-gray-400 line-through">
-                              {formatPrice(calculateOriginalPrice(displayPrice))}
-                            </span>
+                          
                             <Badge className="bg-red-500">-{discountPercent}%</Badge>
                           </>
                         )}
@@ -496,43 +642,54 @@ export default function ProductDetailPage() {
                     </div>
 
                     {/* Color Selection */}
-                    <div className="mb-6">
-                      <label className="text-sm text-gray-600 mb-2 block">Màu sắc: {selectedColor}</label>
-                      <div className="flex gap-2">
-                        {colorOptions.map((color) => (
-                          <button
-                            key={color}
-                            onClick={() => handleSelectColor(color)}
-                            className={`px-4 py-2 border-2 rounded-lg transition-all ${selectedColor === color
-                              ? 'border-indigo-600 bg-indigo-50'
-                              : 'border-gray-200 hover:border-gray-300'
-                              }`}
-                          >
-                            <span className="text-sm">{color}</span>
-                          </button>
-                        ))}
-                      </div>
-                    </div>
+                       {/* 1. KHỐI CHỌN MÀU SẮC */}
+{colorOptions.length > 0 && (
+  <div className="mb-6">
+    <label className="text-sm text-gray-600 mb-2 block">Màu sắc: {selectedColor}</label>
+    <div className="flex gap-2">
+      {colorOptions.map((color: string) => (
+        <button
+          key={color}
+          type="button"
+          onClick={() => handleSelectColor(color)} // <--- BẮT BUỘC PHẢI GỌI HÀM NÀY
+          className={`px-4 py-2 border-2 rounded-lg transition-all ${
+            selectedColor === color
+              ? 'border-indigo-600 bg-indigo-50 text-indigo-600'
+              : 'border-gray-200 text-gray-700 hover:border-gray-300'
+          }`}
+        >
+          <span className="text-sm">{color}</span>
+        </button>
+      ))}
+    </div>
+  </div>
+)}
 
-                    {/* Size Selection */}
-                    <div className="mb-6">
-                      <label className="text-sm text-gray-600 mb-2 block">Size: {selectedSize}</label>
-                      <div className="flex gap-2">
-                        {sizeOptions.map((size) => (
-                          <button
-                            key={size}
-                            onClick={() => setSelectedSize(size)}
-                            className={`px-4 py-2 border-2 rounded-lg transition-all ${selectedSize === size
-                              ? 'border-indigo-600 bg-indigo-50'
-                              : 'border-gray-200 hover:border-gray-300'
-                              }`}
-                          >
-                            <span className="text-sm">{size}</span>
-                          </button>
-                        ))}
-                      </div>
-                    </div>
 
+                    
+                   
+                 {/* Giao diện chọn Size chuẩn */}
+{sizeOptions.length > 0 && (
+  <div className="mb-6">
+    <label className="text-sm text-gray-600 mb-2 block">Size(Loại): {selectedSize}</label>
+    <div className="flex flex-wrap gap-2">
+      {sizeOptions.map((size: string) => (
+        <button
+          key={size}
+          type="button"
+          onClick={() => setSelectedSize(size)} // <--- CHỈ cập nhật state size, không gọi hàm đổi ảnh
+          className={`px-4 py-2 border-2 rounded-lg transition-all ${
+            selectedSize === size
+              ? 'border-indigo-600 bg-indigo-50 text-indigo-600'
+              : 'border-gray-200 text-gray-700 hover:border-gray-300'
+          }`}
+        >
+          <span className="text-sm">{size}</span>
+        </button>
+      ))}
+    </div>
+  </div>
+)}
                     {/* Quantity */}
                     <div className="mb-6">
                       <label className="text-sm text-gray-600 mb-2 block">Số lượng</label>
@@ -670,13 +827,13 @@ export default function ProductDetailPage() {
                       <FileText className="size-4" />
                       Mô tả sản phẩm
                     </TabsTrigger>
-                    <TabsTrigger
+                    {/* <TabsTrigger
                       value="specifications"
                       className="flex items-center gap-2 h-14 px-6 rounded-none border-b-2 border-transparent data-[state=active]:border-indigo-600 data-[state=active]:text-indigo-600 data-[state=active]:bg-indigo-50/40 text-gray-600 hover:text-gray-900 transition-all bg-transparent font-medium"
                     >
                       <Settings2 className="size-4" />
                       Thông số kỹ thuật
-                    </TabsTrigger>
+                    </TabsTrigger> */}
                     <TabsTrigger
                       value="reviews"
                       className="flex items-center gap-2 h-14 px-6 rounded-none border-b-2 border-transparent data-[state=active]:border-indigo-600 data-[state=active]:text-indigo-600 data-[state=active]:bg-indigo-50/40 text-gray-600 hover:text-gray-900 transition-all bg-transparent font-medium"

@@ -185,15 +185,11 @@
 // };
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
-const nodemailer = require("nodemailer");
+const fs = require("fs");
+const { User, Store } = require("../models");
 const userRepository = require("../repositories/user.repository");
 const storeRepository = require("../repositories/store.repository");
-const { User } = require("../models");
-const {
-  STORE_FEE_POLICY,
-  STORE_POLICY_VERSION,
-  buildDossierKey,
-} = require("../utils/store.policy");
+const aiService = require("./ai.service");
 
 const ROLE = {
   ADMIN: "Admin",
@@ -204,432 +200,266 @@ const ROLE = {
 const JWT_SECRET = process.env.JWT_SECRET || "dev_secret";
 const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || "1d";
 
-const MAIL_HOST = process.env.MAIL_HOST || "smtp.gmail.com";
-const MAIL_PORT = Number(process.env.MAIL_PORT || 587);
-const MAIL_SECURE = String(process.env.MAIL_SECURE || "false") === "true";
-const MAIL_USER = process.env.MAIL_USER;
-const MAIL_PASS = process.env.MAIL_PASS;
-const MAIL_FROM = process.env.MAIL_FROM || MAIL_USER;
-const otpCache = new Map();
-const DAILY_XU_AMOUNT = 100;
-const VN_TIMEZONE = "Asia/Ho_Chi_Minh";
+/**
+ * Đăng ký tài khoản mới
+ */
+// const register = async (payload, file = null) => {
+//   const {
+//     username,
+//     email,
+//     password,
+//     role,
+//     store_name,
+//     store_type,
+//     description,
+//     tax_code,
+//     representative_name,
+//     identity_card,
+//   } = payload;
 
-const toDayKey = (dateValue) => {
-  if (!dateValue) {
-    return null;
-  }
+//   // 1. Kiểm tra các trường bắt buộc cơ bản
+//   if (!email || !password || !role) {
+//     const error = new Error("Email, mật khẩu và vai trò là bắt buộc");
+//     error.statusCode = 400;
+//     throw error;
+//   }
 
-  return new Intl.DateTimeFormat("en-CA", {
-    timeZone: VN_TIMEZONE,
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).format(new Date(dateValue));
-};
+//   // 2. Logic riêng cho tài khoản Business (B2B)
+//   if (role === ROLE.BUSINESS) {
+//     // Kiểm tra các trường thông tin doanh nghiệp
+//     if (!store_name || !tax_code || !identity_card) {
+//       const error = new Error("Tài khoản Business yêu cầu tên cửa hàng, mã số thuế và CCCD");
+//       error.statusCode = 400;
+//       throw error;
+//     }
 
-const isMissingOtpColumnError = (error) => {
-  const message = String(error?.message || "").toLowerCase();
-  return (
-    message.includes("reset_otp") ||
-    message.includes("resetotpexpires") ||
-    message.includes("reset_otp_expires")
-  );
-};
+//     // Xác thực Giấy phép kinh doanh qua AI
+//     if (!file) {
+//       const error = new Error("Vui lòng tải lên ảnh Giấy phép kinh doanh để xác thực");
+//       error.statusCode = 400;
+//       throw error;
+//     }
 
-const register = async (payload) => {
+//     try {
+//       const base64Image = fs.readFileSync(file.path, { encoding: "base64" });
+//       const aiResult = await aiService.verifyBusinessLicenseStamp(base64Image, file.mimetype);
+
+//       if (!aiResult.has_red_stamp) {
+//         const error = new Error(`Xác thực thất bại: ${aiResult.reason || "Không tìm thấy dấu mộc đỏ hợp lệ"}`);
+//         error.statusCode = 400;
+//         throw error;
+//       }
+
+//       // Ghi log kết quả AI để theo dõi
+//       console.log(`[AI Verification] Store: ${store_name}, Match Owner: ${aiResult.is_correct_owner}`);
+//     } catch (err) {
+//       if (err.statusCode) throw err;
+//       console.error("[Auth Service] AI Processing Error:", err);
+//       // Có thể chọn fallback cho phép đăng ký nếu AI lỗi hoặc chặn lại tùy độ bảo mật
+//     }
+//   }
+
+//   // 3. Kiểm tra email tồn tại
+//   const existingUser = await userRepository.findByEmail(email);
+//   if (existingUser) {
+//     const error = new Error("Email này đã được sử dụng");
+//     error.statusCode = 400;
+//     throw error;
+//   }
+
+//   // 4. Mã hóa mật khẩu (Đảm bảo cột password trong DB là VARCHAR(255))
+//   const hashedPassword = await bcrypt.hash(password, 10);
+
+//   // 5. Tạo User
+//   const user = await userRepository.create({
+//     username: username || email.split("@")[0],
+//     email,
+//     password: hashedPassword,
+//     role,
+//     status: role === ROLE.BUSINESS ? "PENDING" : "ACTIVE",
+//   });
+
+//   // 6. Nếu là Business, tạo Store với thông tin pháp lý và phí 4%
+//   if (role === ROLE.BUSINESS) {
+//     await storeRepository.create({
+//       owner_id: user.id,
+//       store_name,
+//       store_type: store_type || "C2C",
+//       description,
+//       tax_code,
+//       representative_name: representative_name || "LÊ THỊ HIỀN",
+//       identity_card,
+//       business_license_image: `/uploads/${file.filename}`,
+//       fixed_fee_rate: 0.0400, // Áp dụng phí cố định 4% như kế hoạch
+//       status: "PENDING",
+//     });
+//   }
+
+//   return user;
+// };
+const register = async (payload, file = null) => {
   const {
-    username,
     email,
     password,
     role,
-    store_name, // Chú ý: dùng snake_case để khớp với payload từ frontend
-    description,
-    // business_license có thể là:
-    //   - URL ảnh (khi controller ghi đè từ req.documentUrls)
-    //   - Số GPKD text (khi gửi JSON không kèm file)
-    business_license,
-    // business_license_number: field text riêng khi gửi FormData kèm file
-    // (để tránh trùng tên với field file của multer)
-    business_license_number,
+    username,
+    store_name,
     tax_code,
     representative_name,
     identity_card,
-    bank_account,
-    policy_accepted,
-    service_fee_rate,
+    contact_phone,
+    address,
   } = payload;
 
-  // Nếu gửi FormData có file, business_license sẽ là URL ảnh (từ controller).
-  // business_license_number là số GPKD text. Lưu cả hai vào store riêng.
-  const licensePath = business_license || null;   // URL ảnh hoặc text tùy flow
-  const licenseNumber = business_license_number || null; // Số GPKD (FormData flow)
-
-  // 1. Kiểm tra thông tin bắt buộc
-  if (!email || !password || !role) {
-    const error = new Error("email, password, role are required");
-    error.statusCode = 400;
-    throw error;
+  // 1. Kiểm tra SĐT 10 số
+  const phoneRegex = /^[0-9]{10}$/;
+  if (contact_phone && !phoneRegex.test(contact_phone)) {
+    throw { statusCode: 400, message: "Số điện thoại phải đúng 10 chữ số." };
   }
 
-  // 2. Kiểm tra định dạng Business
-  // - JSON flow: business_license có giá trị text
-  // - FormData flow: business_license_number có giá trị text, business_license sẽ bị ghi đè bởi URL ảnh
-  const hasLicense = !!(business_license || business_license_number);
-  if (role === ROLE.BUSINESS && (!hasLicense || !tax_code)) {
-    const error = new Error(
-      "Business license and Tax code are required for Business role",
-    );
-    error.statusCode = 400;
-    throw error;
-  }
+  // 2. Kiểm tra Email tồn tại
+  const existingUser = await User.findOne({ where: { email } });
+  if (existingUser)
+    throw { statusCode: 400, message: "Email này đã được sử dụng." };
 
-  if (role === ROLE.BUSINESS && !policy_accepted) {
-    const error = new Error(
-      "Bạn cần chấp nhận điều khoản phí và vận hành trước khi đăng ký bán hàng",
-    );
-    error.statusCode = 400;
-    throw error;
-  }
-
-  const normalizedServiceFeeRate = Number(
-    service_fee_rate ?? STORE_FEE_POLICY.defaultServiceFeeRate,
-  );
-
-  if (
-    !Number.isFinite(normalizedServiceFeeRate) ||
-    normalizedServiceFeeRate < 0 ||
-    normalizedServiceFeeRate > STORE_FEE_POLICY.maxServiceFeeRate
-  ) {
-    const error = new Error(
-      `service_fee_rate phải nằm trong khoảng 0 - ${STORE_FEE_POLICY.maxServiceFeeRate}`,
-    );
-    error.statusCode = 400;
-    throw error;
-  }
-
-  if (
-    normalizedServiceFeeRate > 0 &&
-    normalizedServiceFeeRate < STORE_FEE_POLICY.minServiceFeeRate
-  ) {
-    const error = new Error(
-      `service_fee_rate tối thiểu là ${STORE_FEE_POLICY.minServiceFeeRate} khi tham gia gói dịch vụ`,
-    );
-    error.statusCode = 400;
-    throw error;
-  }
-
-  // 3. Kiểm tra email tồn tại
-  const existingUser = await userRepository.findByEmail(email);
-  if (existingUser) {
-    const error = new Error("Email already in use");
-    error.statusCode = 409;
-    throw error;
-  }
-
-  // 4. Mã hóa mật khẩu
+  // 3. Hash mật khẩu
   const hashedPassword = await bcrypt.hash(password, 10);
 
-  // 5. Tạo User
-  const user = await userRepository.createUser({
-    username: username || null,
+  // 4. Tạo User
+  const user = await User.create({
+    username: username || email.split("@")[0],
     email,
     password: hashedPassword,
     role,
-    status: "ACTIVE",
+    status: role === "Business" ? "PENDING" : "ACTIVE",
   });
 
-  // 6. Xử lý tạo Store (Phân luồng C2C và B2C)
-  let store = null;
-  if (role === ROLE.BUSINESS) {
-    const dossierKey = buildDossierKey({
-      identityCard: identity_card,
-      taxCode: tax_code,
-      bankAccount: bank_account,
-    });
-
-    const registeredStoreCount =
-      await storeRepository.countStoresByDossierKey(dossierKey);
-    if (registeredStoreCount >= 3) {
-      const error = new Error(
-        "Một bộ hồ sơ (CCCD/MST/Ngân hàng) chỉ được đăng ký tối đa 3 tài khoản bán hàng",
-      );
-      error.statusCode = 400;
-      throw error;
-    }
-
-    store = await storeRepository.createStore({
+  // 5. Nếu là Business, tạo Store với thông tin pháp lý
+  // 5. Nếu là Business, tạo Store với thông tin pháp lý
+  if (role === "Business") {
+    const { business_license, bank_account, policy_accepted } = payload;
+    await Store.create({
       owner_id: user.id,
+      store_name,
       store_type: "B2C",
-      store_name: store_name || `${username || email}'s Business Store`,
-      description,
-      // licensePath: URL ảnh GPKD (khi có file upload) hoặc text số GPKD (khi gửi JSON)
-      business_license: licensePath,
+      address: address || null,
+      business_license: business_license || null, // Mã số GPKD (text)
+      business_license_image: file // Đường dẫn tương đối (để buildLicenseImageUrl ghép URL)
+        ? `uploads/${file.filename}`
+        : null,
       tax_code,
       representative_name,
       identity_card,
-      bank_account,
-      dossier_key: dossierKey,
-      policy_accepted: true,
-      policy_accepted_at: new Date(),
-      fee_policy_version: STORE_POLICY_VERSION,
-      fixed_fee_rate: STORE_FEE_POLICY.fixedFeeRate,
-      payment_fee_rate: STORE_FEE_POLICY.paymentFeeRate,
-      service_fee_rate: normalizedServiceFeeRate,
-      return_fee_cap_standard: STORE_FEE_POLICY.returnFeeCapStandard,
-      return_fee_cap_express: STORE_FEE_POLICY.returnFeeCapExpress,
-      tax_threshold_per_year: STORE_FEE_POLICY.taxThresholdPerYear,
-      vat_tax_rate: STORE_FEE_POLICY.vatTaxRate,
-      pit_tax_rate: STORE_FEE_POLICY.pitTaxRate,
-      status: "PENDING", // B2C cần Admin duyệt
-    });
-  } else if (store_name) {
-    // Nếu là Customer nhưng điền tên shop thì tạo shop C2C luôn
-    store = await storeRepository.createStore({
-      owner_id: user.id,
-      store_type: "C2C",
-      store_name: store_name,
-      description,
-      identity_card,
-      status: "APPROVED", // C2C duyệt luôn
-    });
-  }
-
-  return {
-    user: {
-      id: user.id,
-      username: user.username,
-      email: user.email,
-      role: user.role,
-      status: user.status,
-    },
-    store,
-  };
-};
-
-const login = async ({ email, password }) => {
-  if (!email || !password) {
-    const error = new Error("email and password are required");
-    error.statusCode = 400;
-    throw error;
-  }
-
-  const user = await userRepository.findByEmail(email);
-  if (!user) {
-    const error = new Error("Invalid email or password");
-    error.statusCode = 401;
-    throw error;
-  }
-
-  const isMatched = await bcrypt.compare(password, user.password);
-  if (!isMatched) {
-    const error = new Error("Invalid email or password");
-    error.statusCode = 401;
-    throw error;
-  }
-
-  const token = jwt.sign({ userId: user.id, role: user.role }, JWT_SECRET, {
-    expiresIn: JWT_EXPIRES_IN,
-  });
-
-  const approvedStore = await storeRepository.findApprovedStoreByOwner(user.id);
-
-  return {
-    token,
-    user: {
-      id: user.id,
-      username: user.username,
-      email: user.email,
-      role: user.role,
-      status: user.status,
-      hasC2CStore: !!approvedStore && approvedStore.store_type === "C2C",
-      c2cStoreId:
-        approvedStore && approvedStore.store_type === "C2C"
-          ? approvedStore.id
+      contact_phone,
+      bank_account: bank_account || null,
+      policy_accepted: policy_accepted === true || policy_accepted === "true",
+      policy_accepted_at:
+        policy_accepted === true || policy_accepted === "true"
+          ? new Date()
           : null,
-      storeName: approvedStore ? approvedStore.store_name : null,
-    },
-  };
-};
-
-const sendResetOtpEmail = async (email, otp) => {
-  if (!MAIL_USER || !MAIL_PASS || !MAIL_FROM) {
-    const error = new Error(
-      "Email service is not configured. Please set MAIL_USER, MAIL_PASS, MAIL_FROM in backend .env",
-    );
-    error.statusCode = 500;
-    throw error;
-  }
-
-  const transporter = nodemailer.createTransport({
-    host: MAIL_HOST,
-    port: MAIL_PORT,
-    secure: MAIL_SECURE,
-    auth: {
-      user: MAIL_USER,
-      pass: MAIL_PASS,
-    },
-  });
-
-  await transporter.sendMail({
-    from: MAIL_FROM,
-    to: email,
-    subject: "Ma OTP dat lai mat khau",
-    text: `Ma OTP cua ban la: ${otp}. Ma co hieu luc trong 10 phut.`,
-    html: `<p>Ma OTP cua ban la: <strong>${otp}</strong></p><p>Ma co hieu luc trong 10 phut.</p>`,
-  });
-};
-
-const forgotPassword = async ({ email }) => {
-  if (!email) {
-    const error = new Error("email is required");
-    error.statusCode = 400;
-    throw error;
-  }
-
-  const user = await userRepository.findByEmail(email);
-
-  // Do not reveal whether email exists.
-  if (!user) {
-    return { success: true };
-  }
-
-  const otp = `${Math.floor(100000 + Math.random() * 900000)}`;
-  const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
-
-  try {
-    await userRepository.setResetOtp(user.id, otp, expiresAt);
-  } catch (error) {
-    if (!isMissingOtpColumnError(error)) {
-      throw error;
-    }
-
-    otpCache.set(email, {
-      otp,
-      expiresAt: expiresAt.getTime(),
+      fixed_fee_rate: 0.04,
+      payment_fee_rate: 0.05,
+      service_fee_rate: 0,
+      return_fee_cap_standard: 40000,
+      return_fee_cap_express: 20000,
+      status: "PENDING",
     });
   }
 
-  await sendResetOtpEmail(email, otp);
-
-  return { success: true };
+  return user;
 };
 
-const resetPassword = async ({ email, otp, newPassword }) => {
-  if (!email || !otp || !newPassword) {
-    const error = new Error("email, otp, newPassword are required");
-    error.statusCode = 400;
-    throw error;
+/**
+ * Đăng nhập
+ */
+// const login = async (email, password) => {
+//   const user = await userRepository.findByEmail(email);
+//   if (!user) {
+//     const error = new Error("Email hoặc mật khẩu không chính xác");
+//     error.statusCode = 401;
+//     throw error;
+//   }
+
+//   const isMatch = await bcrypt.compare(password, user.password);
+//   if (!isMatch) {
+//     const error = new Error("Email hoặc mật khẩu không chính xác");
+//     error.statusCode = 401;
+//     throw error;
+//   }
+
+//   const token = jwt.sign(
+//     { id: user.id, role: user.role },
+//     JWT_SECRET,
+//     { expiresIn: JWT_EXPIRES_IN }
+//   );
+
+//   return { user, token };
+// };
+const login = async ({ email, password }) => {
+  // Thêm dấu ngoặc nhọn {} để phân tách Object từ req.body
+  // 1. Kiểm tra đầu vào
+  if (!email || !password) {
+    throw {
+      statusCode: 400,
+      message: "Vui lòng nhập đầy đủ email và mật khẩu.",
+    };
   }
 
-  if (newPassword.length < 8) {
-    const error = new Error("Password must be at least 8 characters");
-    error.statusCode = 400;
-    throw error;
-  }
-
+  // 2. Tìm User theo email
   const user = await userRepository.findByEmail(email);
   if (!user) {
-    const error = new Error("OTP is invalid or expired");
-    error.statusCode = 400;
-    throw error;
+    throw { statusCode: 401, message: "Email hoặc mật khẩu không chính xác." };
   }
 
-  const cacheOtpData = otpCache.get(email);
-  const dbOtp = user.resetOtp ? String(user.resetOtp) : null;
-  const dbOtpExpiresAt = user.resetOtpExpires
-    ? new Date(user.resetOtpExpires).getTime()
-    : null;
-
-  const validFromDb =
-    !!dbOtp &&
-    !!dbOtpExpiresAt &&
-    dbOtpExpiresAt >= Date.now() &&
-    dbOtp === String(otp);
-
-  const validFromCache =
-    !!cacheOtpData &&
-    cacheOtpData.expiresAt >= Date.now() &&
-    String(cacheOtpData.otp) === String(otp);
-
-  if (!validFromDb && !validFromCache) {
-    const error = new Error("OTP is invalid or expired");
-    error.statusCode = 400;
-    throw error;
+  // 3. So sánh mật khẩu
+  const isMatch = await bcrypt.compare(password, user.password);
+  if (!isMatch) {
+    throw { statusCode: 401, message: "Email hoặc mật khẩu không chính xác." };
   }
 
-  const hashedPassword = await bcrypt.hash(newPassword, 10);
-  try {
-    await userRepository.updatePasswordAndClearOtp(user.id, hashedPassword);
-  } catch (error) {
-    if (!isMissingOtpColumnError(error)) {
-      throw error;
-    }
+  // 4. Tạo Token (Bổ sung cả id và userId để tránh lỗi ở hàm claimDailyXu và updateProfile)
+  const token = jwt.sign(
+    {
+      id: user.id,
+      userId: user.id,
+      role: user.role,
+    },
+    JWT_SECRET,
+    { expiresIn: JWT_EXPIRES_IN },
+  );
 
-    await userRepository.updatePasswordOnly(user.id, hashedPassword);
-  }
-
-  otpCache.delete(email);
-
-  return { success: true };
+  return { user, token };
 };
+const getMe = async (userId) => {
+  return await userRepository.findById(userId);
+};
+
+// --- Logic nhận Xu hàng ngày cho Customer ---
+const DAILY_XU_AMOUNT = 1000;
+const toDayKey = (date) =>
+  date ? new Date(date).toISOString().split("T")[0] : null;
 
 const getDailyXuStatus = async (userId) => {
   const user = await User.findByPk(userId, {
-    attributes: ["id", "role", "xu_balance", "last_xu_claim_at"],
+    attributes: ["id", "xu_balance", "last_xu_claim_at"],
   });
+  if (!user) throw new Error("User not found");
 
-  if (!user) {
-    const error = new Error("User not found");
-    error.statusCode = 404;
-    throw error;
-  }
-
-  if (user.role !== ROLE.CUSTOMER) {
-    const error = new Error(
-      "Chỉ tài khoản khách hàng mới được nhận Xu mỗi ngày",
-    );
-    error.statusCode = 403;
-    throw error;
-  }
-
-  const todayKey = toDayKey(new Date());
-  const lastClaimDayKey = toDayKey(user.last_xu_claim_at);
-  const canClaim = todayKey !== lastClaimDayKey;
-
-  return {
-    xuBalance: Number(user.xu_balance || 0),
-    dailyAmount: DAILY_XU_AMOUNT,
-    canClaim,
-    lastClaimAt: user.last_xu_claim_at,
-  };
+  const canClaim = toDayKey(new Date()) !== toDayKey(user.last_xu_claim_at);
+  return { xuBalance: Number(user.xu_balance || 0), canClaim };
 };
 
 const claimDailyXu = async (userId) => {
-  const user = await User.findByPk(userId, {
-    attributes: ["id", "role", "xu_balance", "last_xu_claim_at"],
-  });
-
-  if (!user) {
-    const error = new Error("User not found");
-    error.statusCode = 404;
-    throw error;
-  }
-
+  const user = await User.findByPk(userId);
   if (user.role !== ROLE.CUSTOMER) {
-    const error = new Error(
-      "Chỉ tài khoản khách hàng mới được nhận Xu mỗi ngày",
-    );
+    const error = new Error("Chỉ khách hàng mới được nhận Xu");
     error.statusCode = 403;
     throw error;
   }
 
-  const todayKey = toDayKey(new Date());
-  const lastClaimDayKey = toDayKey(user.last_xu_claim_at);
-  if (todayKey === lastClaimDayKey) {
-    const error = new Error(
-      "Bạn đã nhận Xu hôm nay rồi. Vui lòng quay lại vào ngày mai.",
-    );
-    error.statusCode = 409;
+  if (toDayKey(new Date()) === toDayKey(user.last_xu_claim_at)) {
+    const error = new Error("Hôm nay bạn đã nhận rồi");
+    error.statusCode = 400;
     throw error;
   }
 
@@ -637,18 +467,80 @@ const claimDailyXu = async (userId) => {
   user.last_xu_claim_at = new Date();
   await user.save();
 
-  return {
-    xuBalance: Number(user.xu_balance || 0),
-    dailyAmount: DAILY_XU_AMOUNT,
-    lastClaimAt: user.last_xu_claim_at,
-  };
+  return { message: "Nhận Xu thành công", newBalance: user.xu_balance };
 };
+// ... các hàm register, login, claimDailyXu ở phía trên ...
 
+/**
+ * Kích hoạt Shop C2C cho người dùng Customer hiện có
+ */
+const activateC2CStore = async (userId, payload) => {
+  const {
+    store_name,
+    description,
+    identity_card,
+    address, // Đã có bóc tách
+    contact_phone,
+    contact_email,
+    policy_accepted,
+  } = payload;
+
+  const fallbackPhone = contact_phone || null;
+
+  return await Store.create({
+    owner_id: userId,
+    store_name,
+    description,
+    address, // <--- BẮT BUỘC THÊM DÒNG NÀY ĐỂ LƯU VÀO DB
+    contact_email,
+    contact_phone: fallbackPhone,
+    identity_card,
+    store_type: "C2C",
+    status: "APPROVED",
+    policy_accepted: policy_accepted === true,
+    policy_accepted_at: new Date(),
+    fixed_fee_rate: 0.04,
+  });
+};
+// services/auth.service.js
+const updateStoreInfo = async (userId, payload) => {
+ const {
+  store_name,
+  description,
+  contact_phone,
+  contact_email,
+  address,
+  latitude,
+  longitude,
+} = payload;
+
+  const store = await Store.findOne({ where: { owner_id: userId } });
+  if (!store)
+    throw { statusCode: 404, message: "Không tìm thấy thông tin cửa hàng." };
+
+  // Cập nhật các thông tin mới vào object store
+  if (store_name) store.store_name = store_name.trim();
+  if (description !== undefined) store.description = description;
+  if (contact_phone) store.contact_phone = contact_phone.replace(/\D/g, "");
+  if (contact_email) store.contact_email = contact_email.toLowerCase().trim();
+
+  // QUAN TRỌNG: Thêm dòng này để cập nhật địa chỉ
+  if (address) store.address = address;
+if (latitude !== undefined)
+  store.latitude = latitude;
+
+if (longitude !== undefined)
+  store.longitude = longitude;
+  await store.save(); // Lưu xuống PostgreSQL
+  return store;
+};
+// CẬP NHẬT PHẦN NÀY Ở CUỐI FILE:
 module.exports = {
   register,
   login,
-  forgotPassword,
-  resetPassword,
+  getMe,
   getDailyXuStatus,
   claimDailyXu,
+  activateC2CStore,
+  updateStoreInfo, // <--- Thêm dòng này vào đây
 };

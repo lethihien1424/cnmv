@@ -1,36 +1,116 @@
 const authService = require("../services/auth.service");
-const { User } = require("../models"); // BẮT BUỘC THÊM DÒNG NÀY để dùng được User
+const aiService = require("../services/ai.service");
+const { User } = require("../models");
+const fs = require("fs");
+
+// const register = async (req, res) => {
+//   try {
+//     const role = req.body?.role;
+
+//     // ── STEP 0: AI Vision — Kiểm tra dấu mộc đỏ nếu đăng ký Business ──
+//     if (role === "Business") {
+//       const licenseFile = req.files?.["business_license_image"]?.[0];
+//       if (licenseFile) {
+//         try {
+//           const imageBuffer = fs.readFileSync(licenseFile.path);
+//           const base64Image = imageBuffer.toString("base64");
+//           const mimeType = licenseFile.mimetype || "image/jpeg";
+
+//           console.log(`[AI Stamp] Đang kiểm tra dấu mộc đỏ: ${licenseFile.originalname}`);
+//           const hasStamp = await aiService.verifyBusinessLicenseStamp(base64Image, mimeType);
+
+//           if (!hasStamp) {
+//             // Xóa file đã upload trước khi từ chối
+//             fs.unlink(licenseFile.path, () => {});
+//             return res.status(400).json({
+//               message:
+//                 "Giấy phép không hợp lệ (Thiếu dấu mộc đỏ). Vui lòng tải lên ảnh GPKD gốc có dấu mộc tròn đỏ của cơ quan nhà nước.",
+//             });
+//           }
+//           console.log("[AI Stamp] Xác thực thành công: Có dấu mộc đỏ.");
+//         } catch (aiErr) {
+//           // Không block đăng ký nếu AI bị lỗi kết nối
+//           console.error("[AI Stamp] Lỗi kết nối AI:", aiErr.message);
+//         }
+//       }
+//     }
+
+//     // ── STEP 1: Gộp dữ liệu từ body và link ảnh (từ middleware) ──
+//     const payload = {
+//       ...req.body,
+//       // business_license giữ nguyên từ req.body (mã số text)
+//       // business_license_image: URL ảnh từ middleware multer
+//       business_license_image: req.documentUrls?.business_license_image || null,
+//       ...(req.documentUrls?.front_id_image && {
+//         front_id_image: req.documentUrls.front_id_image,
+//       }),
+//       ...(req.documentUrls?.back_id_image && {
+//         back_id_image: req.documentUrls.back_id_image,
+//       }),
+//     };
+
+//     const result = await authService.register(payload);
+
+//     return res.status(201).json({
+//       message: "Register success",
+//       data: result,
+//     });
+//   } catch (error) {
+//     return res.status(error.statusCode || 500).json({
+//       message: error.message || "Internal server error",
+//     });
+//   }
+// };
+
+// ==========================================
+// 1. DÁN HÀM REGISTER "X-RAY" VÀO ĐÂY
+// Backend/controllers/auth.controller.js
 
 const register = async (req, res) => {
   try {
-    // Gộp dữ liệu từ body chữ và link ảnh (từ middleware) vào chung một payload
-    const payload = {
-      ...req.body,
-      // Kiểm tra nếu có up ảnh thì gán link vào, nếu không thì giữ giá trị cũ hoặc bỏ qua
-      ...(req.documentUrls?.business_license && {
-        business_license: req.documentUrls.business_license,
-      }),
-      ...(req.documentUrls?.front_id_image && {
-        front_id_image: req.documentUrls.front_id_image,
-      }),
-      ...(req.documentUrls?.back_id_image && {
-        back_id_image: req.documentUrls.back_id_image,
-      }),
-    };
+    const { role, representative_name, tax_code } = req.body;
 
-    const result = await authService.register(payload);
+    // ── AI OCR: Chỉ kiểm tra nếu là Business đăng ký và có file ảnh ──
+    if (role === "Business") {
+      const file = req.files?.["business_license_image"]?.[0];
+      if (!file) {
+        return res.status(400).json({ message: "Vui lòng tải lên ảnh Giấy Phép Kinh Doanh để đăng ký B2C." });
+      }
 
-    return res.status(201).json({
-      message: "Register success",
-      data: result,
-    });
+      try {
+        const base64Image = fs.readFileSync(file.path, { encoding: "base64" });
+        const aiResult = await aiService.verifyBusinessLicenseStamp(
+          base64Image,
+          file.mimetype,
+          representative_name,
+          tax_code
+        );
+
+        if (!aiResult.is_correct_owner) {
+          // Xóa file đã upload nếu AI từ chối
+          fs.unlink(file.path, () => {});
+          return res.status(400).json({
+            message: `Xác thực GPKD thất bại: ${aiResult.reason}`,
+          });
+        }
+        console.log("[AI OCR] Xác thực thành công:", aiResult.reason);
+      } catch (aiErr) {
+        // Không block đăng ký nếu AI bị lỗi kết nối / tesseract lỗi
+        console.error("[AI OCR] Lỗi, cho qua:", aiErr.message);
+      }
+    }
+
+    // ── Lưu vào Database ──
+    const file = req.files?.["business_license_image"]?.[0] || null;
+    const result = await authService.register(req.body, file);
+    return res.status(201).json({ message: "Register success", data: result });
+
   } catch (error) {
     return res.status(error.statusCode || 500).json({
       message: error.message || "Internal server error",
     });
   }
 };
-
 const login = async (req, res) => {
   try {
     const result = await authService.login(req.body);

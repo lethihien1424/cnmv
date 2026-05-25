@@ -1,4 +1,6 @@
-const { Store } = require("../models");
+// repositories/store.repository.js
+const { Op } = require("sequelize");
+const { Store, User } = require("../models");
 
 const createStore = async (payload) => {
   return Store.create(payload);
@@ -7,10 +9,15 @@ const createStore = async (payload) => {
 const findPendingB2CStores = async () => {
   return Store.findAll({
     where: {
-      store_type: "B2C",
       status: "PENDING",
+      // Thử cả hai trường hợp nếu bạn không chắc Model định nghĩa thế nào
+      [Op.or]: [
+        { store_type: "B2C" },
+        { storeType: "B2C" }
+      ]
     },
-    order: [["created_at", "ASC"]],
+    include: [{ model: User, as: "owner", attributes: ["username", "email"] }],
+    order: [["createdAt", "ASC"]],
   });
 };
 

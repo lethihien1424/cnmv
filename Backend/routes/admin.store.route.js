@@ -1,3 +1,4 @@
+// routes/admin.store.route.js
 const express = require("express");
 const adminStoreController = require("../controllers/admin.store.controller");
 const ocrController = require("../controllers/ocr.controller");
@@ -12,6 +13,7 @@ const {
   STORE_POLICY_VERSION,
   buildDossierKey,
 } = require("../utils/store.policy");
+const authService = require("../services/auth.service");
 
 const router = express.Router();
 
@@ -19,6 +21,9 @@ const REPORT_EXCLUDED_ORDER_STATUSES = new Set([
   "CANCELLED",
   "CANCELED",
   "FAILED",
+  "REFUNDED",
+  "RETURNED",
+  "RETURN",
 ]);
 
 const REPORT_EXCLUDED_PAYMENT_STATUSES = new Set(["FAILED", "REFUNDED"]);
@@ -241,6 +246,34 @@ router.get(
   adminStoreController.getMyStoreStatus,
 );
 
+router.put("/update-info", verifyToken, async (req, res) => {
+  try {
+    const userId = req.user?.userId || req.user?.id;
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        message: "Unauthorized",
+      });
+    }
+
+    const updatedStore = await authService.updateStoreInfo(
+      userId,
+      req.body || {},
+    );
+
+    return res.status(200).json({
+      success: true,
+      message: "Cập nhật thành công",
+      data: updatedStore,
+    });
+  } catch (error) {
+    return res.status(error.statusCode || 500).json({
+      success: false,
+      message: error.message || "Lỗi hệ thống",
+    });
+  }
+});
+
 router.get("/my-report", verifyToken, async (req, res) => {
   try {
     const periodRaw = String(req.query.period || "month").toLowerCase();
@@ -275,6 +308,7 @@ router.get("/my-report", verifyToken, async (req, res) => {
       attributes: [
         "id",
         "total_amount",
+        "shipping_fee",
         "order_status",
         "payment_status",
         "createdAt",
@@ -285,6 +319,7 @@ router.get("/my-report", verifyToken, async (req, res) => {
     let totalRevenue = 0;
     let fixedFee = 0;
     let paymentFee = 0;
+    let shippingFee = 0;
     let serviceFee = 0;
     let returnFee = 0;
     let platformCost = 0;
@@ -304,7 +339,12 @@ router.get("/my-report", verifyToken, async (req, res) => {
         continue;
       }
 
-      const amount = toNumber(order.total_amount);
+      const shipping =
+  toNumber(order.shipping_fee);
+
+const amount =
+  toNumber(order.total_amount)
+  - shipping;
       const fixedPart = amount * toNumber(store.fixed_fee_rate);
       const paymentPart = amount * toNumber(store.payment_fee_rate);
       const servicePart = amount * toNumber(store.service_fee_rate);
@@ -326,6 +366,7 @@ router.get("/my-report", verifyToken, async (req, res) => {
       totalRevenue += amount;
       fixedFee += fixedPart;
       paymentFee += paymentPart;
+      shippingFee += shipping;
       serviceFee += servicePart;
       returnFee += returnPart;
       platformCost += platformPart;
@@ -365,6 +406,7 @@ router.get("/my-report", verifyToken, async (req, res) => {
           returnFee,
           platformCost,
           netIncome,
+          shippingFee,
         },
         timeline: Array.from(timelineMap.values()),
       },
@@ -513,6 +555,7 @@ router.post(
       const {
         store_name,
         description,
+        address,
         contact_email,
         contact_phone,
         identity_card,
@@ -522,14 +565,30 @@ router.post(
         service_fee_rate,
       } = req.body;
 
-      if (!store_name || !contact_email || !contact_phone) {
+      if (!store_name) {
         return res.status(400).json({
-          message: "store_name, contact_email và contact_phone là bắt buộc",
+          message: "store_name là bắt buộc",
         });
       }
 
-      const normalizedEmail = String(contact_email).trim().toLowerCase();
-      const normalizedPhone = String(contact_phone).replace(/\D/g, "").trim();
+      const owner = await User.findByPk(req.user.userId, {
+        attributes: ["id", "email"],
+      });
+
+      const fallbackEmail = String(contact_email || owner?.email || "")
+        .trim()
+        .toLowerCase();
+      const normalizedPhone = String(contact_phone || "")
+        .replace(/\D/g, "")
+        .trim();
+
+      if (!fallbackEmail || !normalizedPhone) {
+        return res.status(400).json({
+          message: "contact_email và contact_phone là bắt buộc",
+        });
+      }
+
+      const normalizedEmail = fallbackEmail;
       const normalizedStoreName = String(store_name).trim();
 
       const emailOwner = await User.findOne({
@@ -649,6 +708,7 @@ router.post(
         owner_id: req.user.userId,
         store_name: normalizedStoreName,
         description,
+        address: typeof address === "string" ? address.trim() : null,
         contact_email: normalizedEmail,
         contact_phone: normalizedPhone,
         identity_card, // Sửa: Bổ sung lưu CCCD cho C2C
@@ -695,4 +755,3 @@ router.post(
 );
 
 module.exports = router;
-

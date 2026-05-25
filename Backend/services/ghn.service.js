@@ -8,15 +8,15 @@ const headers = {
   "Content-Type": "application/json",
 };
 
-//
-// ===== 1. PROVINCES =====
-//
+// Master-data endpoints (province/district/ward) không cần ShopId
+const masterHeaders = {
+  Token: process.env.GHN_TOKEN,
+  "Content-Type": "application/json",
+};
+
 const getProvinces = async () => {
   try {
-    const res = await axios.get(
-      `${GHN_URL}/master-data/province`,
-      { headers }
-    );
+    const res = await axios.get(`${GHN_URL}/master-data/province`, { headers: masterHeaders });
     return res.data.data;
   } catch (err) {
     console.log("GHN PROVINCE ERROR:", err.response?.data);
@@ -24,19 +24,13 @@ const getProvinces = async () => {
   }
 };
 
-//
-// ===== 2. DISTRICTS (⚠️ phải POST) =====
-//
 const getDistricts = async (province_id) => {
   try {
     const res = await axios.post(
       `${GHN_URL}/master-data/district`,
-      {
-        province_id: Number(province_id),
-      },
-      { headers }
+      { province_id: Number(province_id) },
+      { headers: masterHeaders }
     );
-
     return res.data.data;
   } catch (err) {
     console.log("GHN DISTRICT ERROR:", err.response?.data);
@@ -44,21 +38,14 @@ const getDistricts = async (province_id) => {
   }
 };
 
-//
-// ===== 3. WARDS =====
-//
 const getWards = async (district_id) => {
   try {
-    const res = await axios.get(
+    // GHN ward endpoint dùng POST với body, không dùng GET params
+    const res = await axios.post(
       `${GHN_URL}/master-data/ward`,
-      {
-        headers,
-        params: {
-          district_id,
-        },
-      }
+      { district_id: Number(district_id) },
+      { headers: masterHeaders }
     );
-
     return res.data.data;
   } catch (err) {
     console.log("GHN WARD ERROR:", err.response?.data);
@@ -66,23 +53,15 @@ const getWards = async (district_id) => {
   }
 };
 
-//
-// ===== 4. SERVICE ID =====
-//
 const getServiceId = async (from_district, to_district) => {
   try {
     const res = await axios.post(
       `${GHN_URL}/v2/shipping-order/available-services`,
-      {
-        from_district,
-        to_district,
-      },
+      { from_district, to_district },
       { headers }
     );
-
     const service = res.data.data[0];
     if (!service) throw new Error("Không có service");
-
     return service.service_id;
   } catch (err) {
     console.log("GET SERVICE ERROR:", err.response?.data);
@@ -90,20 +69,9 @@ const getServiceId = async (from_district, to_district) => {
   }
 };
 
-//
-// ===== 5. CALCULATE SHIPPING =====
-//
-const calculateShipping = async (
-  from_district_id,
-  to_district_id,
-  to_ward_code
-) => {
+const calculateShipping = async (from_district_id, to_district_id, to_ward_code) => {
   try {
-    const service_id = await getServiceId(
-      from_district_id,
-      to_district_id
-    );
-
+    const service_id = await getServiceId(from_district_id, to_district_id);
     const res = await axios.post(
       `${GHN_URL}/v2/shipping-order/fee`,
       {
@@ -111,15 +79,13 @@ const calculateShipping = async (
         to_district_id,
         to_ward_code,
         service_id,
-
-        weight: 200,
-        length: 20,
-        width: 20,
+        weight: 1000,
+        length: 10,
+        width: 10,
         height: 10,
       },
       { headers }
     );
-
     return res.data.data.total;
   } catch (err) {
     console.log("GHN ERROR:", err.response?.data);
@@ -127,12 +93,62 @@ const calculateShipping = async (
   }
 };
 
-//
-// ===== EXPORT =====
-//
+const getAvailableServices = async (from_district, to_district) => {
+  try {
+    const res = await axios.post(
+      `${GHN_URL}/v2/shipping-order/available-services`,
+      {
+        shop_id: Number(process.env.GHN_SHOP_ID),
+        from_district: Number(from_district),
+        to_district: Number(to_district),
+      },
+      { headers }
+    );
+    return res.data.data || [];
+  } catch (err) {
+    console.log("GHN AVAILABLE SERVICES ERROR:", err.response?.data);
+    return [];
+  }
+};
+
+// ─── Tính phí theo service_id, hỗ trợ truyền dimensions tùy chỉnh ────────────
+const calculateFeeByServiceId = async (
+  service_id,
+  from_district_id,
+  to_district_id,
+  to_ward_code,
+  options = {}   // ← thêm param này
+) => {
+  const {
+    weight = 1000,
+    length = 10,
+    width = 10,
+    height = 10,
+  } = options;
+
+  const res = await axios.post(
+    `${GHN_URL}/v2/shipping-order/fee`,
+    {
+      service_id: Number(service_id),
+      from_district_id: Number(from_district_id),
+      to_district_id: Number(to_district_id),
+      to_ward_code: String(to_ward_code),
+      weight,
+      length,
+      width,
+      height,
+    },
+    { headers }
+  );
+  if (!res.data?.data?.total) throw new Error("GHN không trả về phí ship");
+  return res.data.data.total;
+};
+
 module.exports = {
   getProvinces,
   getDistricts,
   getWards,
   calculateShipping,
+  getAvailableServices,
+  calculateFeeByServiceId,
 };

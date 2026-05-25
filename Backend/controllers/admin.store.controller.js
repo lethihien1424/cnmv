@@ -17,9 +17,9 @@ const getPendingStores = async (req, res) => {
 const updateStoreStatus = async (req, res) => {
   try {
     const { id } = req.params;
-    const { status } = req.body;
+    const { status, reason } = req.body;
 
-    const store = await adminStoreService.updateStoreStatus(id, status);
+    const store = await adminStoreService.updateStoreStatus(id, status, reason);
 
     return res.status(200).json({
       message: "Update store status success",

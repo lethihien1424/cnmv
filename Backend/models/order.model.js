@@ -1,4 +1,4 @@
-// D:\CongNgheMoi-hien\CongNgheMoi\Backend\models\order.model.js
+// Backend/models/order.model.js
 const { DataTypes } = require("sequelize");
 
 module.exports = (sequelize) => {
@@ -24,8 +24,21 @@ module.exports = (sequelize) => {
       },
       shipping_fee: {
         type: DataTypes.BIGINT,
-        defaultValue: 20000,
+        defaultValue: 0,
       },
+
+      // VẬN CHUYỂN
+      shipping_provider: {
+        type: DataTypes.STRING(20),
+        defaultValue: "GHN",
+        allowNull: false,
+      },
+      shipping_service_type: {
+        type: DataTypes.STRING(20),
+        defaultValue: "STANDARD",
+        allowNull: false,
+      },
+
       shipping_address: {
         type: DataTypes.TEXT,
         allowNull: true,
@@ -38,11 +51,24 @@ module.exports = (sequelize) => {
         type: DataTypes.STRING(50),
         defaultValue: "UNPAID",
       },
-     order_status: {
-        // PENDING → SHIPPING → DELIVERED hoặc → CANCELLED
+      order_status: {
         type: DataTypes.STRING(50),
         defaultValue: "PENDING",
       },
+
+      distance_km: {
+        type: DataTypes.FLOAT,
+        allowNull: true,
+      },
+      estimated_delivery_time: {
+        type: DataTypes.STRING,
+        allowNull: true,
+      },
+
+      // Cancel fields
+      cancelled_by_role: { type: DataTypes.STRING(50), allowNull: true },
+      cancel_reason: { type: DataTypes.STRING(100), allowNull: true },
+      cancelled_at: { type: DataTypes.DATE, allowNull: true },
     },
     {
       tableName: "orders",

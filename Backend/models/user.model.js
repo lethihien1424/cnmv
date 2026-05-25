@@ -1,3 +1,4 @@
+// models/user.model.js
 const { DataTypes } = require("sequelize");
 
 module.exports = (sequelize) => {
@@ -10,11 +11,11 @@ module.exports = (sequelize) => {
         primaryKey: true,
       },
       username: {
-        type: DataTypes.STRING(50),
+        type: DataTypes.STRING(255), // Nới rộng từ 50 → 255
         allowNull: true,
       },
       email: {
-        type: DataTypes.STRING(100),
+        type: DataTypes.STRING(255), // Nới rộng từ 100 → 255
         allowNull: false,
         unique: true,
       },

@@ -2,13 +2,19 @@ import React from 'react';
 import Slider from 'react-slick';
 import 'slick-carousel/slick/slick.css';
 import 'slick-carousel/slick/slick-theme.css';
-import { ImageWithFallback } from './figma/ImageWithFallback';
+
 import { ChevronLeft, ChevronRight } from 'lucide-react';
+
+// IMPORT ẢNH
+import img1 from '../../imports/image-7.jpg';
+import img2 from '../../imports/image-6.jpg';
+import img3 from '../../imports/image.png';
 
 interface ArrowProps {
   onClick?: () => void;
 }
 
+// Nút Next
 const NextArrow = ({ onClick }: ArrowProps) => (
   <button
     onClick={onClick}
@@ -18,6 +24,7 @@ const NextArrow = ({ onClick }: ArrowProps) => (
   </button>
 );
 
+// Nút Prev
 const PrevArrow = ({ onClick }: ArrowProps) => (
   <button
     onClick={onClick}
@@ -39,6 +46,7 @@ export default function HeroCarousel() {
     nextArrow: <NextArrow />,
     prevArrow: <PrevArrow />,
     dotsClass: 'slick-dots !bottom-4',
+
     customPaging: () => (
       <div className="size-2 bg-white/60 rounded-full hover:bg-white transition-all" />
     ),
@@ -47,23 +55,18 @@ export default function HeroCarousel() {
   const slides = [
     {
       id: 1,
-      title: 'Đón hè sang - Deal xinh ngập tràn',
-      discount: '50%',
-      minPrice: '99.000đ',
-      discount2: '20%',
-      image: '/src/imports/image-7.png',
+     
+      image: img1,
     },
     {
       id: 2,
-      title: 'Flash Sale hôm nay',
-      discount: '80.000đ',
-      image: '/src/imports/image-6.png',
+      
+      image: img2,
     },
     {
       id: 3,
-      title: 'Freeship 0đ',
-      discount: '18%',
-      image: '/src/imports/image.png',
+      
+      image: img3,
     },
   ];
 
@@ -73,11 +76,22 @@ export default function HeroCarousel() {
         {slides.map((slide) => (
           <div key={slide.id} className="outline-none">
             <div className="relative h-[400px]">
-              <ImageWithFallback
+              <img
                 src={slide.image}
-                alt={slide.title}
+                
                 className="w-full h-full object-cover"
               />
+
+              {/* Overlay */}
+          <div className="absolute inset-0 bg-black/5 flex items-center">
+                <div className="text-white px-10">
+                  <h2 className="text-4xl font-bold mb-4">
+                   
+                  </h2>
+
+                  
+                </div>
+              </div>
             </div>
           </div>
         ))}

@@ -1,9 +1,8 @@
-//D:\CongNgheMoi-hien\CongNgheMoi\Backend\models\cartItem.model.js
 const { DataTypes } = require("sequelize");
 
 module.exports = (sequelize) => {
-  const CartItem = sequelize.define(
-    "CartItem",
+  const CartDetail = sequelize.define(
+    "CartDetail",
     {
       id: {
         type: DataTypes.UUID,
@@ -22,13 +21,21 @@ module.exports = (sequelize) => {
         type: DataTypes.INTEGER,
         defaultValue: 1,
       },
+      size: {
+        type: DataTypes.STRING,
+        allowNull: true,
+      },
+      color: {
+        type: DataTypes.STRING,
+        allowNull: true,
+      },
     },
     {
-      tableName: "cart_items",
+      tableName: "cart_details",
       timestamps: true,
       underscored: true,
     }
   );
 
-  return CartItem;
+  return CartDetail;
 };

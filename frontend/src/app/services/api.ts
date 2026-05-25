@@ -1,3 +1,4 @@
+// frontend/src/app/services/api.ts
 const DEFAULT_API_BASE_URL = 'http://localhost:5000';
 
 const rawApiBaseUrl =
@@ -11,6 +12,24 @@ export const API_BASE_URL =
   normalizedApiBaseUrl.endsWith('/api')
     ? normalizedApiBaseUrl
     : `${normalizedApiBaseUrl}/api`;
+
+export const BACKEND_URL = normalizedApiBaseUrl.endsWith('/api')
+  ? normalizedApiBaseUrl.slice(0, -4)
+  : normalizedApiBaseUrl;
+
+export function getAbsoluteImageUrl(path: string | null | undefined): string {
+  if (!path) return '';
+  if (
+    path.startsWith('http://') ||
+    path.startsWith('https://') ||
+    path.startsWith('data:') ||
+    path.startsWith('blob:')
+  ) {
+    return path;
+  }
+  const cleanPath = path.startsWith('/') ? path : `/${path}`;
+  return `${BACKEND_URL}${cleanPath}`;
+}
 
 type ApiErrorResponse = {
   message?: string;

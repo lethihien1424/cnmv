@@ -4,10 +4,13 @@ const cartRepo = require("../repositories/cart.repository");
 const { Product } = require("../models");
 
 // ADD
-const addToCart = async (userId, productId, quantity) => {
+const addToCart = async (userId, productId, quantity, size = null, color = null) => {
   if (!quantity || quantity <= 0) {
     throw new Error("Số lượng không hợp lệ");
   }
+
+  const normSize = (size === undefined || size === null || String(size).trim() === "" || String(size).trim() === "null" || String(size).trim() === "undefined") ? null : String(size).trim();
+  const normColor = (color === undefined || color === null || String(color).trim() === "" || String(color).trim() === "null" || String(color).trim() === "undefined") ? null : String(color).trim();
 
   // 🔥 check product tồn tại
   const product = await Product.findByPk(productId);
@@ -26,7 +29,7 @@ const addToCart = async (userId, productId, quantity) => {
     cart = await cartRepo.createCart(userId);
   }
 
-  const existingItem = await cartRepo.findItem(cart.id, productId);
+  const existingItem = await cartRepo.findItem(cart.id, productId, normSize, normColor);
 
   if (existingItem) {
     const newQuantity = existingItem.quantity + quantity;
@@ -43,15 +46,20 @@ const addToCart = async (userId, productId, quantity) => {
     cart_id: cart.id,
     product_id: productId,
     quantity,
+    size: normSize,
+    color: normColor,
   });
 };
 
 // UPDATE
-const updateQuantity = async (userId, productId, quantity) => {
+const updateQuantity = async (userId, productId, quantity, size = null, color = null) => {
+  const normSize = (size === undefined || size === null || String(size).trim() === "" || String(size).trim() === "null" || String(size).trim() === "undefined") ? null : String(size).trim();
+  const normColor = (color === undefined || color === null || String(color).trim() === "" || String(color).trim() === "null" || String(color).trim() === "undefined") ? null : String(color).trim();
+
   const cart = await cartRepo.findCartByUserId(userId);
   if (!cart) throw new Error("Cart not found");
 
-  const item = await cartRepo.findItem(cart.id, productId);
+  const item = await cartRepo.findItem(cart.id, productId, normSize, normColor);
   if (!item) throw new Error("Item not found");
 
   const product = await Product.findByPk(productId);

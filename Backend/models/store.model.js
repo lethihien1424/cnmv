@@ -1,157 +1,4 @@
-// const { DataTypes } = require("sequelize");
-
-// module.exports = (sequelize) => {
-//   const Store = sequelize.define(
-//     "Store",
-//     {
-//       id: {
-//         type: DataTypes.UUID,
-//         defaultValue: DataTypes.UUIDV4,
-//         primaryKey: true,
-//       },
-//       owner_id: {
-//         type: DataTypes.UUID,
-//         allowNull: false,
-//       },
-//       store_type: {
-//         type: DataTypes.STRING(10),
-//         allowNull: true,
-//       },
-//       store_name: {
-//         type: DataTypes.STRING(255),
-//         allowNull: false,
-//       },
-//       description: {
-//         type: DataTypes.TEXT,
-//         allowNull: true,
-//       },
-//       business_license: {
-//         type: DataTypes.TEXT,
-//         allowNull: true,
-//       },
-//       status: {
-//         type: DataTypes.STRING(20),
-//         defaultValue: "PENDING",
-//       },
-//       deleted_at: {
-//         type: DataTypes.DATE,
-//         allowNull: true,
-//       },
-//     },
-//     {
-//       tableName: "stores",
-//       timestamps: true,
-//       underscored: true,
-//       paranoid: true,
-//       deletedAt: "deleted_at",
-//     },
-//   );
-
-//   return Store;
-// };
-// // Backend/models/store.model.js
-// const { DataTypes } = require("sequelize");
-
-// module.exports = (sequelize) => {
-//   const Store = sequelize.define(
-//     "Store",
-//     {
-//       id: {
-//         type: DataTypes.UUID,
-//         defaultValue: DataTypes.UUIDV4,
-//         primaryKey: true,
-//       },
-//       owner_id: { type: DataTypes.UUID, allowNull: false },
-//       store_type: { type: DataTypes.STRING(10), allowNull: true },
-//       store_name: { type: DataTypes.STRING(255), allowNull: false },
-//       description: { type: DataTypes.TEXT, allowNull: true },
-//       business_license: { type: DataTypes.TEXT, allowNull: true },
-//       status: { type: DataTypes.STRING(20), defaultValue: "PENDING" },
-//       // --- BỔ SUNG CÁC CỘT MỚI DƯỚI ĐÂY ---
-//       tax_code: { type: DataTypes.STRING(50), allowNull: true },
-//       representative_name: { type: DataTypes.STRING(255), allowNull: true },
-//       identity_card: { type: DataTypes.STRING(20), allowNull: true },
-//       // ----------------------------------
-//       deleted_at: { type: DataTypes.DATE, allowNull: true },
-//     },
-//     {
-//       tableName: "stores",
-//       timestamps: true,
-//       underscored: true,
-//       paranoid: true,
-//       deletedAt: "deleted_at",
-//     },
-//   );
-//   return Store;
-// };
-// Backend/models/store.model.js
-// const { DataTypes } = require("sequelize");
-
-// module.exports = (sequelize) => {
-//   const Store = sequelize.define(
-//     "Store",
-//     {
-//       id: {
-//         type: DataTypes.UUID,
-//         defaultValue: DataTypes.UUIDV4,
-//         primaryKey: true,
-//       },
-//       owner_id: {
-//         type: DataTypes.UUID,
-//         allowNull: false,
-//       },
-//       store_type: {
-//         type: DataTypes.STRING(10),
-//         allowNull: true, // 'C2C' hoặc 'B2C'
-//       },
-//       store_name: {
-//         type: DataTypes.STRING(255),
-//         allowNull: false,
-//       },
-//       description: {
-//         type: DataTypes.TEXT,
-//         allowNull: true,
-//       },
-//       business_license: {
-//         type: DataTypes.TEXT,
-//         allowNull: true, // Chỉ bắt buộc đối với B2C
-//       },
-//       status: {
-//         type: DataTypes.STRING(20),
-//         defaultValue: "PENDING", // Mặc định là 'PENDING', 'APPROVED', hoặc 'REJECTED'
-//       },
-//       // --- CÁC CỘT BỔ SUNG ĐỂ KHỚP VỚI DATABASE ---
-//       tax_code: {
-//         type: DataTypes.STRING(50),
-//         allowNull: true,
-//       },
-//       representative_name: {
-//         type: DataTypes.STRING(255),
-//         allowNull: true,
-//       },
-//       identity_card: {
-//         type: DataTypes.STRING(20),
-//         allowNull: true,
-//       },
-//       // ------------------------------------------
-//       deleted_at: {
-//         type: DataTypes.DATE,
-//         allowNull: true,
-//       },
-//     },
-//     {
-//       tableName: "stores",
-//       timestamps: true,
-//       underscored: true, // Để khớp với created_at, updated_at trong SQL
-//       paranoid: true, // Hỗ trợ Soft Delete với cột deleted_at
-//       deletedAt: "deleted_at",
-//     },
-//   );
-
-//   return Store;
-// };
-//D:\CNM_cu\CongNgheMoi\Backend\models\store.model.js
-
+//D:\CNM_new2\CongNgheMoi\Backend\models\store.model.js
 const { DataTypes } = require("sequelize");
 
 module.exports = (sequelize) => {
@@ -167,9 +14,16 @@ module.exports = (sequelize) => {
       store_type: { type: DataTypes.STRING(10), allowNull: true },
       store_name: { type: DataTypes.STRING(255), allowNull: false },
       description: { type: DataTypes.TEXT, allowNull: true },
-      business_license: { type: DataTypes.TEXT, allowNull: true },
+      business_license: { type: DataTypes.TEXT, allowNull: true }, // Mã số GPKD (text)
+      business_license_image: { type: DataTypes.TEXT, allowNull: true }, // URL ảnh GPKD
       status: { type: DataTypes.STRING(20), defaultValue: "PENDING" },
-
+      reject_reason: { type: DataTypes.TEXT, allowNull: true }, // Lý do từ chối (chỉ có khi status=REJECTED)
+// ✅ Đã đưa address vào đúng vị trí bên trong định nghĩa các cột
+      address: {
+        type: DataTypes.TEXT,
+        allowNull: true,
+        comment: "Địa chỉ lấy hàng gộp từ GHN"
+      },
       tax_code: { type: DataTypes.STRING(50), allowNull: true },
       representative_name: { type: DataTypes.STRING(255), allowNull: true },
       identity_card: { type: DataTypes.STRING(20), allowNull: true },
@@ -228,7 +82,15 @@ module.exports = (sequelize) => {
         allowNull: false,
         defaultValue: 0.005,
       },
+latitude: {
+  type: DataTypes.DECIMAL(10, 8),
+  allowNull: true,
+},
 
+longitude: {
+  type: DataTypes.DECIMAL(11, 8),
+  allowNull: true,
+},
       deleted_at: { type: DataTypes.DATE, allowNull: true },
     },
     {
@@ -238,6 +100,8 @@ module.exports = (sequelize) => {
       paranoid: true,
       deletedAt: "deleted_at",
     },
+    // Thêm vào trong cấu hình các thuộc tính của Store
+
   );
 
   return Store;

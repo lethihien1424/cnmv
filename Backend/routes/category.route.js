@@ -1,6 +1,7 @@
 const express = require("express");
 const router = express.Router();
 const { Category } = require("../models");
+const { Op } = require("sequelize");
 const { verifyToken, checkRole } = require("../middlewares/auth.middleware");
 
 // Xem danh sách danh mục (Ai cũng xem được)
@@ -20,6 +21,19 @@ router.put("/:id", verifyToken, checkRole(["Admin"]), async (req, res) => {
 
     if (!category) {
       return res.status(404).json({ message: "Không tìm thấy danh mục" });
+    }
+
+    // Kiểm tra trùng tên (bỏ qua chính mình)
+    if (req.body.name && req.body.name.trim()) {
+      const duplicate = await Category.findOne({
+        where: {
+          name: { [Op.iLike]: req.body.name.trim() },
+          id: { [Op.ne]: id },
+        },
+      });
+      if (duplicate) {
+        return res.status(409).json({ message: `Tên danh mục "${req.body.name.trim()}" đã tồn tại` });
+      }
     }
 
     await category.update(req.body);
@@ -50,7 +64,20 @@ router.delete("/:id", verifyToken, checkRole(["Admin"]), async (req, res) => {
 // Admin mới được tạo danh mục
 router.post("/", verifyToken, checkRole(["Admin"]), async (req, res) => {
   try {
-    const category = await Category.create(req.body);
+    const name = (req.body.name || "").trim();
+    if (!name) {
+      return res.status(400).json({ message: "Tên danh mục không được để trống" });
+    }
+
+    // Kiểm tra trùng tên (case-insensitive)
+    const existing = await Category.findOne({
+      where: { name: { [Op.iLike]: name } },
+    });
+    if (existing) {
+      return res.status(409).json({ message: `Tên danh mục "${name}" đã tồn tại` });
+    }
+
+    const category = await Category.create({ ...req.body, name });
     res.status(201).json({ success: true, data: category });
   } catch (error) {
     res.status(400).json({ message: error.message });

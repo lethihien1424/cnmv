@@ -1,21 +1,27 @@
-//D:\CNM_cu\CongNgheMoi\Backend\routes\product.route.js
 const express = require("express");
+const router = express.Router(); // <--- DÒNG NÀY LÀ CÁI BẠN ĐANG THIẾU
 const productController = require("../controllers/product.controller");
 const { verifyToken, checkRole } = require("../middlewares/auth.middleware");
 const { uploadProductImages } = require("../middlewares/upload.middleware");
-const { checkToxicContent } = require("../middlewares/aiModeration"); // 🤖 AI Kiểm duyệt nội dung
+const { checkToxicContent } = require("../middlewares/aiModeration");
 
-const router = express.Router();
-
+// Các route GET không cần bảo mật (Ai cũng xem được)
 router.get("/", productController.searchProducts);
 router.get("/:id", productController.getProductDetail);
+router.get(
+  "/:id/flash-sale/suggest",
+  verifyToken,
+  checkRole(["Customer", "Business"]),
+  productController.suggestFlashSale,
+);
 
+// Các route cần bảo mật (POST, PUT, DELETE)
 router.post(
   "/",
   verifyToken,
   checkRole(["Customer", "Business"]),
-  uploadProductImages,       // Xử lý multipart/form-data trước
-  checkToxicContent,         // 🤖 AI quét nội dung - chặn nếu vi phạm
+  uploadProductImages,
+  checkToxicContent,
   productController.createProduct,
 );
 
@@ -23,8 +29,8 @@ router.put(
   "/:id",
   verifyToken,
   checkRole(["Customer", "Business"]),
-  uploadProductImages,       // Xử lý multipart/form-data trước
-  checkToxicContent,         // 🤖 AI quét nội dung - chặn nếu vi phạm
+  uploadProductImages,
+  checkToxicContent,
   productController.updateProduct,
 );
 
@@ -41,19 +47,11 @@ router.put(
   checkRole(["Customer", "Business"]),
   productController.setFlashSale,
 );
-
 router.put(
   "/:id/flash-sale/schedule",
   verifyToken,
   checkRole(["Customer", "Business"]),
   productController.scheduleFlashSale,
-);
-
-router.get(
-  "/:id/flash-sale/suggest",
-  verifyToken,
-  checkRole(["Customer", "Business"]),
-  productController.suggestFlashSale,
 );
 
 module.exports = router;

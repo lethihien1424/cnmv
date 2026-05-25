@@ -22,6 +22,7 @@ export interface SellerReportData {
     revenue: number;
     fixedFee: number;
     paymentFee: number;
+    shippingFee: number;
     serviceFee: number;
     returnFee: number;
     platformCost: number;

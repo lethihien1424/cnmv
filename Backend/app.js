@@ -15,7 +15,9 @@ const addressRoutes = require("./routes/address.route");
 const ghnRoutes = require("./routes/ghn.route");
 // Thêm dòng này ở phần require
 const shippingRoutes = require("./routes/shipping.route");
-
+const storeRoutes = require("./routes/store.route");
+const geocodeRoute = require("./routes/geocode.route");
+const dashboardRoutes = require("./routes/dashboard.route");
 
 const app = express();
 
@@ -23,7 +25,8 @@ const allowedOrigins = new Set([
   process.env.FRONTEND_URL || "http://localhost:5173",
   "http://127.0.0.1:5173",
 ]);
-
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
 app.use((req, res, next) => {
   const origin = req.headers.origin;
 
@@ -51,9 +54,10 @@ app.use((req, res, next) => {
     .json({ message: "CORS policy does not allow this origin" });
 });
 
-app.use(express.json());
+
 app.use("/api/notifications", notificationRoutes);
 app.use("/api/stores", adminStoreRoutes);
+app.use("/api/stores", storeRoutes);
 app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 app.use("/api/auth", authRoutes);
 app.use("/api/admin", adminStoreRoutes);
@@ -66,11 +70,28 @@ app.use("/api/reviews", reviewRoutes);
 app.use("/api/users", userRoutes); // 🔥 THÊM
 app.use("/api/addresses", addressRoutes);
 app.use("/api/ghn", ghnRoutes);
+
 // ==================== THÊM DÒNG NÀY VÀO CUỐI PHẦN ROUTES ====================
 app.use("/api/shipping", shippingRoutes);
-
+app.use(
+  "/api/geocode",
+  geocodeRoute
+);
 app.get("/health", (req, res) => {
   res.status(200).json({ message: "Backend is running" });
+});
+app.use("/api/dashboard", require("./routes/dashboard.route"));
+// GLOBAL ERROR HANDLER
+app.use((err, req, res, next) => {
+
+  console.error(err);
+
+  return res.status(500).json({
+    success: false,
+    message:
+      err.message ||
+      "Internal Server Error",
+  });
 });
 
 module.exports = app;

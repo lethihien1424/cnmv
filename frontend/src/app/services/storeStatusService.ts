@@ -1,3 +1,4 @@
+// frontend/src/app/services/storeStatusService.ts
 import { apiRequest } from './api';
 
 export type UserStoreStatus = {

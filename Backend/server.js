@@ -6,7 +6,8 @@ const { Server } = require("socket.io");
 const { Op } = require("sequelize");
 const { sequelize, Product, User } = require("./models");
 const cron = require("node-cron");
-
+const ghnRoutes = require("./routes/ghn.route");
+app.use("/api/ghn", ghnRoutes);
 const PORT = Number(process.env.PORT || 5000);
 const AUTO_REPLY_MESSAGE =
   "Khách hàng vui lòng chờ trong giây lát, chúng tôi sẽ trả lời ngay.";
@@ -170,11 +171,8 @@ const chatHistoryByRoom = new Map();
 
 const startServer = async () => {
   try {
-    await sequelize.authenticate();
-    const syncOptions =
-      process.env.NODE_ENV === "production" ? {} : { alter: true };
-
-    await sequelize.sync(syncOptions);
+    await sequelize.sync();
+    console.log("[DB] Database synced successfully.");
 
     const server = http.createServer(app);
     const io = new Server(server, {

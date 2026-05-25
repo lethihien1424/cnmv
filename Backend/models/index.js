@@ -1,4 +1,4 @@
-//D:\CongNgheMoi-hien\CongNgheMoi\Backend\models\index.js
+//D:\CongNgheMoi_new\CongNgheMoi\Backend\models\index.js
 const { Sequelize } = require("sequelize");
 const createUserModel = require("./user.model");
 const createStoreModel = require("./store.model");
@@ -6,11 +6,15 @@ const createCategoryModel = require("./category.model");
 const createNotificationModel = require("./notification.model");
 const createProductModel = require("./product.model");
 const createOrderModel = require("./order.model");
-const createOrderItemModel = require("./order_item.model");
+const createOrderDetailModel = require("./orderDetail.model");
 const createCartModel = require("./cart.model");
-const createCartItemModel = require("./cartItem.model");
+const createCartDetailModel = require("./cartDetail.model");
 const createAddressModel = require("./address.model");
 const createReviewModel = require("./review.model");
+// ── THÊM 2 DÒNG NÀY ──
+const createWalletModel = require("./wallet.model");
+const createWalletTransactionModel = require("./walletTransaction.model");
+
 const dbName = (process.env.DB_NAME || "cnmoi").trim().replace(/\.sql$/i, "");
 
 const sequelize = new Sequelize(
@@ -22,6 +26,13 @@ const sequelize = new Sequelize(
     port: Number(process.env.DB_PORT || 5432),
     dialect: "postgres",
     logging: false,
+    dialectOptions: {
+      client_encoding: "UTF8",
+      options: "-c client_encoding=UTF8",
+    },
+    define: {
+      charset: "utf8",
+    },
   },
 );
 
@@ -31,11 +42,14 @@ const Category = createCategoryModel(sequelize);
 const Notification = createNotificationModel(sequelize);
 const Product = createProductModel(sequelize);
 const Order = createOrderModel(sequelize);
-const OrderItem = createOrderItemModel(sequelize);
+const OrderDetail = createOrderDetailModel(sequelize);
 const Cart = createCartModel(sequelize);
-const CartItem = createCartItemModel(sequelize);
+const CartDetail = createCartDetailModel(sequelize);
 const Address = createAddressModel(sequelize);
 const Review = createReviewModel(sequelize);
+// ── THÊM 2 DÒNG NÀY ──
+const Wallet = createWalletModel(sequelize);
+const WalletTransaction = createWalletTransactionModel(sequelize);
 
 User.hasMany(Store, { foreignKey: "owner_id", as: "stores" });
 Store.belongsTo(User, { foreignKey: "owner_id", as: "owner" });
@@ -54,17 +68,17 @@ Order.belongsTo(User, { foreignKey: "buyer_id", as: "buyer" });
 Store.hasMany(Order, { foreignKey: "store_id", as: "orders" });
 Order.belongsTo(Store, { foreignKey: "store_id", as: "store" });
 
-Order.hasMany(OrderItem, { foreignKey: "order_id", as: "items" });
-OrderItem.belongsTo(Order, { foreignKey: "order_id", as: "order" });
-Product.hasMany(OrderItem, { foreignKey: "product_id", as: "order_items" });
-OrderItem.belongsTo(Product, { foreignKey: "product_id", as: "product" });
+Order.hasMany(OrderDetail, { foreignKey: "order_id", as: "items" });
+OrderDetail.belongsTo(Order, { foreignKey: "order_id", as: "order" });
+Product.hasMany(OrderDetail, { foreignKey: "product_id", as: "order_details" });
+OrderDetail.belongsTo(Product, { foreignKey: "product_id", as: "product" });
 
 User.hasOne(Cart, { foreignKey: "user_id", as: "cart" });
 Cart.belongsTo(User, { foreignKey: "user_id", as: "user" });
-Cart.hasMany(CartItem, { foreignKey: "cart_id", as: "items" });
-CartItem.belongsTo(Cart, { foreignKey: "cart_id", as: "cart" });
-Product.hasMany(CartItem, { foreignKey: "product_id", as: "cart_items" });
-CartItem.belongsTo(Product, { foreignKey: "product_id", as: "product" });
+Cart.hasMany(CartDetail, { foreignKey: "cart_id", as: "items" });
+CartDetail.belongsTo(Cart, { foreignKey: "cart_id", as: "cart" });
+Product.hasMany(CartDetail, { foreignKey: "product_id", as: "cart_details" });
+CartDetail.belongsTo(Product, { foreignKey: "product_id", as: "product" });
 
 User.hasMany(Address, { foreignKey: "user_id", as: "addresses" });
 Address.belongsTo(User, { foreignKey: "user_id", as: "user" });
@@ -76,6 +90,12 @@ Review.belongsTo(Product, { foreignKey: "product_id", as: "product" });
 Order.hasMany(Review, { foreignKey: "order_id", as: "reviews" });
 Review.belongsTo(Order, { foreignKey: "order_id", as: "order" });
 
+// ── THÊM ASSOCIATIONS CHO WALLET ──
+User.hasOne(Wallet, { foreignKey: "user_id", as: "wallet" });
+Wallet.belongsTo(User, { foreignKey: "user_id", as: "user" });
+Wallet.hasMany(WalletTransaction, { foreignKey: "wallet_id", as: "transactions" });
+WalletTransaction.belongsTo(Wallet, { foreignKey: "wallet_id", as: "wallet" });
+
 module.exports = {
   sequelize,
   User,
@@ -85,8 +105,11 @@ module.exports = {
   Product,
   Notification,
   Order,
-  OrderItem,
+  OrderDetail,
   Cart,
-  CartItem,
+  CartDetail,
   Review,
+  // ── THÊM 2 DÒNG NÀY ──
+  Wallet,
+  WalletTransaction,
 };

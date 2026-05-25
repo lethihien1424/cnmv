@@ -1,11 +1,23 @@
 import { apiRequest } from './api';
-
+import axios from 'axios';
+/* =========================================================
+   PATHS
+========================================================= */
 const PRODUCTS_PATH = '/products';
 const CATEGORIES_PATH = '/categories';
 
-export type ProductCondition = 'NEW' | 'USED';
+
+/* =========================================================
+   REGEX
+========================================================= */
 const VARIANT_MARKER_REGEX = /<!--variants:(.*?)-->/s;
 const SPEC_MARKER_REGEX = /<!--specs:(.*?)-->/s;
+
+/* =========================================================
+   TYPES
+========================================================= */
+
+export type ProductCondition = 'NEW' | 'USED';
 
 export interface ProductVariant {
   color: string;
@@ -21,6 +33,12 @@ export interface ProductSpecification {
   value: string;
 }
 
+export interface ParsedProductMetadata {
+  plainDescription: string;
+  variants: ProductVariant[];
+  specifications: ProductSpecification[];
+}
+
 export interface Product {
   id: string;
   store_id: string;
@@ -32,248 +50,267 @@ export interface Product {
   stock_quantity: number;
   condition: ProductCondition;
   status: string;
+
+  color?: string;
+  size?: string;
+  type?: string;
+  is_bulky?: boolean;
+
   is_flash_sale?: boolean;
   flash_sale_price?: number | null;
   flash_sale_sold?: number;
   flash_sale_stock?: number;
   flash_sale_start_time?: string | null;
   flash_sale_end_time?: string | null;
+
   created_at: string;
   updated_at: string;
-  store?: {
-    id: string;
-    store_name: string;
-    store_type: 'C2C' | 'B2C';
-    status: string;
-    owner?: {
-      id: string;
-      username: string;
-      email: string;
-      role: string;
-      status: string;
-    };
-  };
+
+  store?: any;
 }
+
+/* =========================================================
+   CATEGORY
+========================================================= */
 
 export interface Category {
   id: string;
   name: string;
   description?: string | null;
   parent_id?: string | null;
-  createdAt?: string;
-  updatedAt?: string;
 }
 
-export interface UpsertCategoryPayload {
-  name: string;
-  description?: string;
-  parent_id?: string | null;
-}
-
-export interface ParsedProductMetadata {
-  plainDescription: string;
-  variants: ProductVariant[];
-  specifications: ProductSpecification[];
-}
+/* =========================================================
+   PRODUCT PAYLOAD
+========================================================= */
 
 export interface UpsertProductPayload {
   name: string;
   price: number;
   condition: ProductCondition;
   store_id: string;
+
   description?: string;
   stock_quantity?: number;
+  category_id?: string;
+
+  images?: File[];
+
+  color?: string;
+  size?: string;
+  type?: string;
+  is_bulky?: boolean;
+
   is_flash_sale?: boolean;
   flash_sale_price?: number;
   flash_sale_sold?: number;
   flash_sale_stock?: number;
-  flash_sale_start_time?: string;
-  flash_sale_end_time?: string;
-  category_id?: string;
-  images?: File[];
 }
 
-export interface FlashSalePayload {
-  is_flash_sale: boolean;
-  flash_sale_price?: number | null;
-  flash_sale_stock?: number;
-}
+/* =========================================================
+   AUTH
+========================================================= */
 
-export interface FlashSaleSchedulePayload {
-  flash_sale_price: number;
-  flash_sale_stock?: number;
-  flash_sale_start_time: string;
-  flash_sale_end_time: string;
-}
+const getToken = (t?: string | null) =>
+  t ?? localStorage.getItem('token');
 
-export interface FlashSaleSuggestion {
-  product_id: string;
-  product_name: string;
-  original_price: number;
-  stock_quantity: number;
-  suggested_flash_sale_price: number;
-  suggested_flash_sale_stock: number;
-  suggested_flash_sale_start_time: string;
-  suggested_flash_sale_end_time: string;
-  rationale: string;
-}
+/* =========================================================
+   FORM DATA
+========================================================= */
 
-export interface ProductQuery {
-  keyword?: string;
-  minPrice?: number;
-  maxPrice?: number;
-  category_id?: string;
-  store_type?: 'C2C' | 'B2C';
-  limit?: number;
-  offset?: number;
-  use_ai?: boolean;
-}
+// Trong app/services/productService.ts
+const buildFormData = (payload: Partial<any>) => {
+  const fd = new FormData();
 
-const buildAuthToken = (token?: string | null) => token ?? localStorage.getItem('token');
+  Object.entries(payload).forEach(([k, v]) => {
+    if (v === undefined || v === null || v === '') return;
 
-const buildProductFormData = (payload: Partial<UpsertProductPayload>) => {
-  const formData = new FormData();
+    // Xử lý File ảnh
+    if (k === 'images' && Array.isArray(v)) {
+      v.forEach((file) => {
+        if (file instanceof File || file instanceof Blob) {
+          fd.append('images', file);
+        }
+      });
+      return;
+    }
 
-  if (payload.name !== undefined) formData.append('name', payload.name);
-  if (payload.description !== undefined) formData.append('description', payload.description);
-  if (payload.price !== undefined) formData.append('price', String(payload.price));
-  if (payload.stock_quantity !== undefined) {
-    formData.append('stock_quantity', String(payload.stock_quantity));
-  }
-  if (payload.is_flash_sale !== undefined) {
-    formData.append('is_flash_sale', String(payload.is_flash_sale));
-  }
-  if (payload.flash_sale_price !== undefined) {
-    formData.append('flash_sale_price', String(payload.flash_sale_price));
-  }
-  if (payload.flash_sale_sold !== undefined) {
-    formData.append('flash_sale_sold', String(payload.flash_sale_sold));
-  }
-  if (payload.flash_sale_stock !== undefined) {
-    formData.append('flash_sale_stock', String(payload.flash_sale_stock));
-  }
-  if (payload.category_id !== undefined) formData.append('category_id', payload.category_id);
-  if (payload.condition !== undefined) formData.append('condition', payload.condition);
-  if (payload.store_id !== undefined) formData.append('store_id', payload.store_id);
+    // Xử lý mảng biến thể (variants)
+    if (k === 'variants' && Array.isArray(v)) {
+      fd.append('variants', JSON.stringify(v));
+      return;
+    }
 
-  if (payload.images && payload.images.length > 0) {
-    payload.images.forEach((file) => formData.append('images', file));
-  }
+    // Các trường khác (tên, giá, màu, size...)
+    fd.append(k, String(v));
+  });
 
-  return formData;
+  return fd;
 };
 
-const buildQueryString = (query: ProductQuery = {}) => {
-  const params = new URLSearchParams();
+/* =========================================================
+   QUERY
+========================================================= */
 
-  if (query.keyword) params.set('keyword', query.keyword);
-  if (query.minPrice !== undefined) params.set('minPrice', String(query.minPrice));
-  if (query.maxPrice !== undefined) params.set('maxPrice', String(query.maxPrice));
-  if (query.category_id) params.set('category_id', query.category_id);
-  if (query.store_type) params.set('store_type', query.store_type);
-  if (query.limit !== undefined) params.set('limit', String(query.limit));
-  if (query.offset !== undefined) params.set('offset', String(query.offset));
-  if (query.use_ai) params.set('use_ai', 'true');
-
-  const queryString = params.toString();
-  return queryString ? `?${queryString}` : '';
+const qs = (query: any = {}) => {
+  const p = new URLSearchParams();
+  Object.entries(query).forEach(([k, v]) => {
+    if (v !== undefined && v !== null) p.set(k, String(v));
+  });
+  return p.toString() ? `?${p}` : '';
 };
 
-export async function getProducts(query?: ProductQuery): Promise<Product[]> {
-  return apiRequest<Product[]>(`${PRODUCTS_PATH}${buildQueryString(query)}`, {
-    method: 'GET',
+/* =========================================================
+   PRODUCT API
+========================================================= */
+
+export async function getProducts(query?: any): Promise<Product[]> {
+  return apiRequest(`${PRODUCTS_PATH}${qs(query)}`, { method: 'GET' });
+}
+
+export async function getProductDetail(id: string): Promise<Product> {
+  return apiRequest(`${PRODUCTS_PATH}/${id}`, { method: 'GET' });
+}
+
+// Dòng 214-219: Đây là code FRONTEND bị dán nhầm vào Backend!
+export const createProduct = async (formData: FormData, token: string) => {
+  // Thay thế đường dẫn bằng URL tuyệt đối để loại trừ lỗi Proxy
+  const response = await axios.post(`http://localhost:5000/api/products`, formData, {
+    headers: {
+      'Authorization': `Bearer ${token}`, // Đảm bảo token không phải "Bearer undefined"
+    },
+  });
+  return response.data;
+};
+
+export const updateProduct = async (id: string, formData: FormData, token: string) => {
+  const response = await axios.put(`http://localhost:5000/api/products/${id}`, formData, {
+    headers: {
+      'Authorization': `Bearer ${token}`,
+    },
+  });
+  return response.data;
+};
+
+export async function deleteProduct(id: string, token?: string | null) {
+  return apiRequest(
+    `${PRODUCTS_PATH}/${id}`,
+    { method: 'DELETE' },
+    getToken(token)
+  );
+}
+
+/* =========================================================
+   SELLER (FIXED EXPORT MISSING)
+========================================================= */
+
+export async function getSellerProducts(options: {
+  userId: string;
+  storeId?: string;
+  storeType?: 'C2C' | 'B2C';
+}): Promise<Product[]> {
+  const products = await getProducts({
+    limit: 100,
+    store_type: options.storeType,
+  });
+
+  return products.filter((p) => {
+    if (options.storeId && p.store_id === options.storeId) return true;
+    return p.store?.owner?.id === options.userId;
   });
 }
 
-export async function getProductDetail(productId: string): Promise<Product> {
-  return apiRequest<Product>(`${PRODUCTS_PATH}/${productId}`, {
-    method: 'GET',
-  });
-}
+/* =========================================================
+   CATEGORY API (FIX EXPORT ERROR)
+========================================================= */
 
 export async function getCategories(): Promise<Category[]> {
-  return apiRequest<Category[]>(CATEGORIES_PATH, {
-    method: 'GET',
-  });
+  return apiRequest(CATEGORIES_PATH, { method: 'GET' });
 }
 
-export async function createCategory(
-  payload: UpsertCategoryPayload,
-  token?: string | null,
-): Promise<Category> {
-  return apiRequest<Category>(
+export async function createCategory(payload: any, token?: string | null) {
+  return apiRequest(
     CATEGORIES_PATH,
-    {
-      method: 'POST',
-      body: JSON.stringify(payload),
-    },
-    buildAuthToken(token),
+    { method: 'POST', body: JSON.stringify(payload) },
+    getToken(token)
   );
 }
 
-export async function updateCategory(
-  categoryId: string,
-  payload: Partial<UpsertCategoryPayload>,
-  token?: string | null,
-): Promise<Category> {
-  return apiRequest<Category>(
-    `${CATEGORIES_PATH}/${categoryId}`,
+export async function updateCategory(id: string, payload: any, token?: string | null) {
+  return apiRequest(
+    `${CATEGORIES_PATH}/${id}`,
+    { method: 'PUT', body: JSON.stringify(payload) },
+    getToken(token)
+  );
+}
+
+export async function deleteCategory(id: string, token?: string | null) {
+  return apiRequest(
+    `${CATEGORIES_PATH}/${id}`,
+    { method: 'DELETE' },
+    getToken(token)
+  );
+}
+
+/* =========================================================
+   FLASH SALE (FIXED EXPORT MISSING)
+========================================================= */
+
+export async function updateFlashSale(
+  productId: string,
+  data: {
+    is_flash_sale: boolean;
+    flash_sale_price?: number | null;
+    flash_sale_stock?: number;
+  },
+  token?: string | null
+) {
+  return apiRequest(
+    `${PRODUCTS_PATH}/${productId}/flash-sale`,
     {
       method: 'PUT',
-      body: JSON.stringify(payload),
+      body: JSON.stringify(data),
     },
-    buildAuthToken(token),
+    getToken(token)
   );
 }
 
-export async function deleteCategory(categoryId: string, token?: string | null): Promise<unknown> {
-  return apiRequest<unknown>(
-    `${CATEGORIES_PATH}/${categoryId}`,
+export async function scheduleFlashSale(
+  productId: string,
+  data: any,
+  token?: string | null
+) {
+  return apiRequest(
+    `${PRODUCTS_PATH}/${productId}/flash-sale/schedule`,
     {
-      method: 'DELETE',
+      method: 'PUT',
+      body: JSON.stringify(data),
     },
-    buildAuthToken(token),
+    getToken(token)
   );
 }
 
-export function buildDescriptionWithVariants(
-  plainDescription: string,
-  variants: ProductVariant[],
-  specifications: ProductSpecification[] = [],
-): string {
-  const safeDescription = plainDescription
-    .replace(VARIANT_MARKER_REGEX, '')
-    .replace(SPEC_MARKER_REGEX, '')
-    .trim();
-
-  const sections = [safeDescription].filter(Boolean);
-
-  if (variants.length > 0) {
-    const encodedVariants = encodeURIComponent(JSON.stringify(variants));
-    sections.push(`<!--variants:${encodedVariants}-->`);
-  }
-
-  if (specifications.length > 0) {
-    const encodedSpecs = encodeURIComponent(JSON.stringify(specifications));
-    sections.push(`<!--specs:${encodedSpecs}-->`);
-  }
-
-  if (sections.length === 0) {
-    return '';
-  }
-
-  if (sections.length === 1 && sections[0] === safeDescription) {
-    return safeDescription;
-  }
-
-  return sections.join('\n');
+export async function suggestFlashSale(productId: string, token?: string | null) {
+  return apiRequest(
+    `${PRODUCTS_PATH}/${productId}/flash-sale/suggest`,
+    { method: 'GET' },
+    getToken(token)
+  );
 }
 
-export function parseDescriptionMetadata(description: string | null | undefined): ParsedProductMetadata {
-  const rawDescription = description || '';
-  const variantMatch = rawDescription.match(VARIANT_MARKER_REGEX);
-  const specMatch = rawDescription.match(SPEC_MARKER_REGEX);
-  const plainDescription = rawDescription
+/* =========================================================
+   PARSER (SAFE)
+========================================================= */
+
+export function parseDescriptionMetadata(
+  description: string | null | undefined
+): ParsedProductMetadata {
+  const raw = description || '';
+
+  const variantMatch = raw.match(VARIANT_MARKER_REGEX);
+  const specMatch = raw.match(SPEC_MARKER_REGEX);
+
+  const plainDescription = raw
     .replace(VARIANT_MARKER_REGEX, '')
     .replace(SPEC_MARKER_REGEX, '')
     .trim();
@@ -281,38 +318,53 @@ export function parseDescriptionMetadata(description: string | null | undefined)
   let variants: ProductVariant[] = [];
   let specifications: ProductSpecification[] = [];
 
+  // =========================
+  // SAFE VARIANT PARSE
+  // =========================
   if (variantMatch?.[1]) {
     try {
-      const parsed = JSON.parse(decodeURIComponent(variantMatch[1])) as ProductVariant[];
-      variants = parsed
-        .filter((variant) => variant && variant.color && variant.size)
-        .map((variant) => ({
-          color: String(variant.color),
-          size: String(variant.size),
-          price: Number(variant.price),
-          stock_quantity: Number(variant.stock_quantity || 0),
-          image_url: typeof variant.image_url === 'string' ? variant.image_url : undefined,
-          image_index:
-            typeof variant.image_index === 'number' && Number.isInteger(variant.image_index)
-              ? variant.image_index
+      const parsed = JSON.parse(decodeURIComponent(variantMatch[1]));
+
+      if (Array.isArray(parsed)) {
+        variants = parsed
+          .map((v) => ({
+            color: v?.color?.trim() || '',
+            size: v?.size?.trim() || '',
+            price: Number(v?.price ?? 0),
+            stock_quantity: Number(v?.stock_quantity ?? 0),
+            image_url: v?.image_url || undefined,
+            image_index: Number.isInteger(v?.image_index)
+              ? v.image_index
               : undefined,
-        }))
-        .filter((variant) => Number.isFinite(variant.price) && variant.price >= 0);
+          }))
+          // 🔥 IMPORTANT: chỉ giữ variant có ít nhất 1 thông tin thật
+          .filter(
+            (v) =>
+              v.color !== '' ||
+              v.size !== '' ||
+              Number.isFinite(v.price)
+          );
+      }
     } catch {
       variants = [];
     }
   }
 
+  // =========================
+  // SAFE SPEC PARSE
+  // =========================
   if (specMatch?.[1]) {
     try {
-      const parsed = JSON.parse(decodeURIComponent(specMatch[1])) as ProductSpecification[];
-      specifications = parsed
-        .filter((spec) => spec && spec.label && spec.value)
-        .map((spec) => ({
-          label: String(spec.label).trim(),
-          value: String(spec.value).trim(),
-        }))
-        .filter((spec) => spec.label.length > 0 && spec.value.length > 0);
+      const parsed = JSON.parse(decodeURIComponent(specMatch[1]));
+
+      if (Array.isArray(parsed)) {
+        specifications = parsed
+          .map((s) => ({
+            label: s?.label?.trim() || '',
+            value: s?.value?.trim() || '',
+          }))
+          .filter((s) => s.label && s.value);
+      }
     } catch {
       specifications = [];
     }
@@ -325,104 +377,24 @@ export function parseDescriptionMetadata(description: string | null | undefined)
   };
 }
 
-export async function getSellerProducts(options: {
-  userId: string;
-  token?: string | null;
-  storeId?: string;
-  storeType?: 'C2C' | 'B2C';
-}): Promise<Product[]> {
-  const products = await getProducts({
-    limit: 100,
-    store_type: options.storeType,
-  });
+/* =========================================================
+   BUILDER
+========================================================= */
 
-  return products.filter((product) => {
-    if (options.storeId && product.store_id === options.storeId) {
-      return true;
-    }
+export function buildDescriptionWithVariants(
+  desc: string,
+  variants: ProductVariant[],
+  specs: ProductSpecification[] = []
+) {
+  let result = desc?.trim() || '';
 
-    return product.store?.owner?.id === options.userId;
-  });
-}
+  if (variants.length) {
+    result += `\n<!--variants:${encodeURIComponent(JSON.stringify(variants))}-->`;
+  }
 
-export async function createProduct(
-  payload: UpsertProductPayload,
-  token?: string | null,
-): Promise<Product> {
-  return apiRequest<Product>(
-    PRODUCTS_PATH,
-    {
-      method: 'POST',
-      body: buildProductFormData(payload),
-    },
-    buildAuthToken(token),
-  );
-}
+  if (specs.length) {
+    result += `\n<!--specs:${encodeURIComponent(JSON.stringify(specs))}-->`;
+  }
 
-export async function updateProduct(
-  productId: string,
-  payload: Partial<UpsertProductPayload>,
-  token?: string | null,
-): Promise<Product> {
-  return apiRequest<Product>(
-    `${PRODUCTS_PATH}/${productId}`,
-    {
-      method: 'PUT',
-      body: buildProductFormData(payload),
-    },
-    buildAuthToken(token),
-  );
-}
-
-export async function deleteProduct(productId: string, token?: string | null): Promise<unknown> {
-  return apiRequest<unknown>(
-    `${PRODUCTS_PATH}/${productId}`,
-    {
-      method: 'DELETE',
-    },
-    buildAuthToken(token),
-  );
-}
-// Thêm vào file src/app/services/productService.ts
-export async function updateFlashSale(
-  productId: string,
-  data: FlashSalePayload,
-  token?: string | null,
-): Promise<Product> {
-  return apiRequest<Product>(
-    `${PRODUCTS_PATH}/${productId}/flash-sale`,
-    {
-      method: 'PUT',
-      body: JSON.stringify(data),
-    },
-    buildAuthToken(token),
-  );
-}
-
-export async function scheduleFlashSale(
-  productId: string,
-  data: FlashSaleSchedulePayload,
-  token?: string | null,
-): Promise<Product> {
-  return apiRequest<Product>(
-    `${PRODUCTS_PATH}/${productId}/flash-sale/schedule`,
-    {
-      method: 'PUT',
-      body: JSON.stringify(data),
-    },
-    buildAuthToken(token),
-  );
-}
-
-export async function suggestFlashSale(
-  productId: string,
-  token?: string | null,
-): Promise<FlashSaleSuggestion> {
-  return apiRequest<FlashSaleSuggestion>(
-    `${PRODUCTS_PATH}/${productId}/flash-sale/suggest`,
-    {
-      method: 'GET',
-    },
-    buildAuthToken(token),
-  );
+  return result;
 }

@@ -1,10 +1,12 @@
 // D:\CongNgheMoi-hien\CongNgheMoi\frontend\src\app\services\cartService.ts
 import { API_BASE_URL } from "./api";
 
-export type CartItem = {
+export type CartDetail = {
   id: string;
   product_id: string;
   quantity: number;
+  size?: string | null;
+  color?: string | null;
   product?: {
     id: string;
     name: string;
@@ -23,7 +25,7 @@ const authHeaders = () => ({
 
 export const cartAPI = {
   // GET /api/cart/
-  getCart: async (): Promise<CartItem[]> => {
+  getCart: async (): Promise<CartDetail[]> => {
     const res = await fetch(`${API_BASE_URL}/cart`, {
       headers: { Authorization: `Bearer ${getToken()}` },
     });
@@ -33,43 +35,59 @@ export const cartAPI = {
   },
 
   // POST /api/cart/add
-  addToCart: async (productId: string, quantity = 1, variant?: object) => {
+  addToCart: async (
+    productId: string,
+    quantity = 1,
+    size?: string | null,
+    color?: string | null
+  ) => {
     const res = await fetch(`${API_BASE_URL}/cart/add`, {
       method: "POST",
       headers: authHeaders(),
-      body: JSON.stringify({ product_id: productId, quantity, variant }),
+      body: JSON.stringify({
+        product_id: productId,
+        quantity,
+        size: size ?? null,
+        color: color ?? null,
+      }),
     });
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
-      throw new Error((err as { message?: string }).message || "Không thêm được vào giỏ hàng");
+      throw new Error(
+        (err as { message?: string }).message || "Không thêm được vào giỏ hàng"
+      );
     }
     return res.json();
   },
 
   // PUT /api/cart/update
-  updateQuantity: async (productId: string, quantity: number) => {
+  updateQuantity: async (
+    productId: string,
+    quantity: number,
+    size?: string | null,
+    color?: string | null
+  ) => {
     const res = await fetch(`${API_BASE_URL}/cart/update`, {
       method: "PUT",
       headers: authHeaders(),
-      body: JSON.stringify({ product_id: productId, quantity }),
+      body: JSON.stringify({
+        product_id: productId,
+        quantity,
+        size: size ?? null,
+        color: color ?? null,
+      }),
     });
     if (!res.ok) throw new Error("Không cập nhật được số lượng");
     return res.json();
   },
 
-  // DELETE /api/cart/remove  (nếu backend chưa có thì dùng update quantity=0)
-  removeItem: async (productId: string) => {
-    const res = await fetch(`${API_BASE_URL}/cart/remove`, {
-      method: "DELETE",
-      headers: authHeaders(),
-      body: JSON.stringify({ product_id: productId }),
-    });
-    // Nếu chưa có route remove, fallback về update quantity = 0
-    if (res.status === 404) {
-      return cartAPI.updateQuantity(productId, 0);
-    }
-    if (!res.ok) throw new Error("Không xóa được sản phẩm");
-    return res.json();
+  // Xóa item: dùng update quantity = 0, truyền đủ size + color để backend xác định đúng dòng
+  removeItem: async (
+    productId: string,
+    size?: string | null,
+    color?: string | null
+  ) => {
+    return cartAPI.updateQuantity(productId, 0, size ?? null, color ?? null);
   },
 };
 

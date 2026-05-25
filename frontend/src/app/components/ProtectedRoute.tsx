@@ -1,5 +1,5 @@
 import React from 'react';
-import { Navigate } from 'react-router';
+import { Navigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 
 interface ProtectedRouteProps {
@@ -22,9 +22,10 @@ export default function ProtectedRoute({ children, allowedRoles }: ProtectedRout
     return <Navigate to="/login" replace />;
   }
 
-  if (allowedRoles && !allowedRoles.includes(user.role)) {
-    // Redirect to appropriate page based on role
-    if (user.role === 'admin') {
+  const currentRole = (user.role || '').toLowerCase();
+
+  if (allowedRoles && !allowedRoles.includes(currentRole as any)) {
+    if (currentRole === 'admin') {
       return <Navigate to="/admin" replace />;
     }
     return <Navigate to="/" replace />;

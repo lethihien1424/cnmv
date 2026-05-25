@@ -1,7 +1,9 @@
+// frontend/src/app/services/addressService.ts
 import { apiRequest } from './api';
 
 export interface UserAddress {
   id: string;
+  user_id?: string;
   recipient_name: string;
   phone: string;
   province: string;
@@ -12,6 +14,10 @@ export interface UserAddress {
   province_id?: number;
   district_id?: number;
   ward_code?: string;
+  latitude?: number | null;
+  longitude?: number | null;
+  created_at?: string;
+  updated_at?: string;
 }
 
 export interface CreateAddressPayload {

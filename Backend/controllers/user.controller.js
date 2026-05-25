@@ -30,7 +30,7 @@ const getUserById = async (req, res) => {
 const updateUser = async (req, res) => {
   try {
     const user = await userService.updateUser(req.params.id, req.body);
-    res.json(user);
+    res.json({ message: "Cập nhật thành công", data: user });
   } catch (err) {
     res.status(400).json({ message: err.message });
   }
@@ -44,11 +44,60 @@ const deleteUser = async (req, res) => {
     res.status(400).json({ message: err.message });
   }
 };
+const getProfile = async (
+  req,
+  res
+) => {
 
+  try {
+
+    const user =
+      await userService.getProfile(
+        req.user.id
+      );
+
+    res.json({
+      data: user,
+    });
+
+  } catch (err) {
+
+    res.status(400).json({
+      message: err.message,
+    });
+  }
+};
+const updateProfile = async (
+  req,
+  res
+) => {
+
+  try {
+
+    const user =
+      await userService.updateProfile(
+        req.user.id,
+        req.body
+      );
+
+    res.json({
+      message: "Cập nhật thành công",
+      data: user,
+    });
+
+  } catch (err) {
+
+    res.status(400).json({
+      message: err.message,
+    });
+  }
+};
 module.exports = {
   createUser,
   getAllUsers,
   getUserById,
   updateUser,
   deleteUser,
+  getProfile,
+  updateProfile,
 };

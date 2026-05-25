@@ -1,3 +1,4 @@
+// services/user.service.js
 const bcrypt = require("bcryptjs");
 const userRepo = require("../repositories/user.repository");
 
@@ -57,8 +58,8 @@ const updateUser = async (id, data) => {
   }
 
   if (data.password) {
-    if (!/^\d{6,}$/.test(data.password)) {
-      throw new Error("Mật khẩu phải ít nhất 6 chữ số");
+    if (data.password.length < 6) {
+      throw new Error("Mật khẩu phải ít nhất 6 ký tự");
     }
     data.password = await bcrypt.hash(data.password, 10);
   }
@@ -69,11 +70,33 @@ const updateUser = async (id, data) => {
 const deleteUser = async (id) => {
   return await userRepo.deleteUser(id);
 };
+const getProfile = async (userId) => {
 
+  const user =
+    await userRepo.getProfile(userId);
+
+  if (!user) {
+    throw new Error("Không tìm thấy user");
+  }
+
+  return user;
+};
+const updateProfile = async (
+  userId,
+  data
+) => {
+
+  return await userRepo.updateProfile(
+    userId,
+    data
+  );
+};
 module.exports = {
   createUser,
   getAllUsers,
   getUserById,
   updateUser,
   deleteUser,
+  getProfile,
+  updateProfile,
 };

@@ -6,7 +6,7 @@ import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '../components/ui/card';
 import { toast } from 'sonner';
-import { Store, Mail, Lock, User, Building2, FileText, ReceiptText, Upload, CheckCircle2, ImageIcon } from 'lucide-react';
+import { Store, Mail, Lock, User, Building2, FileText, ReceiptText, Upload, CheckCircle2, ImageIcon, Phone, CreditCard } from 'lucide-react';
 
 export default function RegisterBusinessPage() {
   const [username, setUsername] = useState('');
@@ -17,7 +17,9 @@ export default function RegisterBusinessPage() {
   const [businessLicense, setBusinessLicense] = useState('');
   const [taxCode, setTaxCode] = useState('');
   const [bankAccount, setBankAccount] = useState('');
-  const [servicePackage, setServicePackage] = useState('0');
+  const [representativeName, setRepresentativeName] = useState('');
+  const [identityCard, setIdentityCard] = useState('');
+  const [contactPhone, setContactPhone] = useState('');
   const [policyAccepted, setPolicyAccepted] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   // State mới: lưu file ảnh GPKD thật
@@ -84,9 +86,11 @@ export default function RegisterBusinessPage() {
     try {
       await registerBusiness(username, email, password, storeName, businessLicense, taxCode, {
         bankAccount,
-        serviceFeeRate: Number(servicePackage),
         policyAccepted,
-        businessLicenseImage: licenseImageFile,  // ← File ảnh thật
+        representativeName,
+        identityCard,
+        contactPhone,
+        businessLicenseImage: licenseImageFile,
       });
       toast.success('Đăng ký doanh nghiệp thành công! Vui lòng đăng nhập.');
       navigate('/login');
@@ -219,10 +223,10 @@ export default function RegisterBusinessPage() {
                   </div>
                   <p className="font-medium text-violet-700 text-sm">Nhấn để tải lên ảnh GPKD</p>
                   <p className="text-xs text-gray-500">JPG, PNG, WEBP — Tối đa 5MB</p>
-                  <div className="flex items-center gap-2 text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 mt-1">
+                  {/* <div className="flex items-center gap-2 text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 mt-1">
                     <ImageIcon className="size-3 shrink-0" />
-                    Bắt buộc — AI sẽ dùng ảnh này để xác thực hồ sơ của bạn
-                  </div>
+                    AI Vision sẽ tự động kiểm tra dấu mộc đỏ trong ảnh GPKD
+                  </div> */}
                 </button>
               )}
             </div>
@@ -259,26 +263,57 @@ export default function RegisterBusinessPage() {
               <p className="text-xs text-gray-500">Tối đa 3 tài khoản bán hàng trên cùng CCCD/MST/Ngân hàng.</p>
             </div>
 
+            {/* 3 trường mới: đại diện pháp luật, CCCD, điện thoại */}
             <div className="space-y-2">
-              <Label htmlFor="servicePackage">Gói dịch vụ (Voucher/Freeship Extra)</Label>
-              <select
-                id="servicePackage"
-                value={servicePackage}
-                onChange={(e) => setServicePackage(e.target.value)}
-                className="w-full rounded-md border border-gray-200 px-3 py-2 text-sm"
-              >
-                <option value="0">Không tham gia (0%)</option>
-                <option value="0.01">Gói cơ bản (+1%)</option>
-                <option value="0.03">Gói tăng trưởng (+3%)</option>
-                <option value="0.05">Gói tối đa (+5%)</option>
-              </select>
+              <Label htmlFor="representativeName">Họ tên người đại diện pháp luật <span className="text-red-500">*</span></Label>
+              <div className="relative">
+                <User className="pointer-events-none absolute left-3 top-3 size-4 text-gray-400" />
+                <Input
+                  id="representativeName"
+                  type="text"
+                  placeholder="Nguyễn Văn A"
+                  value={representativeName}
+                  onChange={(e) => setRepresentativeName(e.target.value)}
+                  required
+                  className="pl-10"
+                />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="identityCard">Số CCCD/CMND <span className="text-red-500">*</span></Label>
+              <div className="relative">
+                <CreditCard className="pointer-events-none absolute left-3 top-3 size-4 text-gray-400" />
+                <Input
+                  id="identityCard"
+                  type="text"
+                  placeholder="VD: 012345678901"
+                  value={identityCard}
+                  onChange={(e) => setIdentityCard(e.target.value)}
+                  required
+                  className="pl-10"
+                />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="contactPhone">Số điện thoại liên hệ <span className="text-red-500">*</span></Label>
+              <div className="relative">
+                <Phone className="pointer-events-none absolute left-3 top-3 size-4 text-gray-400" />
+                <Input
+                  id="contactPhone"
+                  type="tel"
+                  placeholder="VD: 0912345678"
+                  value={contactPhone}
+                  onChange={(e) => setContactPhone(e.target.value)}
+                  required
+                  className="pl-10"
+                />
+              </div>
             </div>
 
             <div className="rounded-lg border border-violet-200 bg-violet-50 p-3 text-xs text-violet-900 space-y-1">
               <p className="font-semibold">Điều khoản phí bán hàng</p>
               <p>- Miễn phí mở tài khoản, tối đa 3 tài khoản/hồ sơ (CCCD/MST/Ngân hàng).</p>
               <p>- Phí cố định 4% và phí thanh toán 5% chỉ thu trên đơn giao thành công.</p>
-              <p>- Phí dịch vụ thêm từ 1% - 5% nếu tham gia gói.</p>
               <p>- Phí trả hàng: tối đa 40.000đ/đơn (20.000đ với đơn hỏa tốc).</p>
               <p>- Thuế: doanh thu &gt; 100 triệu/năm chịu 1% GTGT + 0.5% TNCN.</p>
               <p>- Không đăng bán hàng cấm, hàng giả, hàng nhái; không buff đơn, gian lận hoặc lôi kéo khách ra ngoài sàn.</p>

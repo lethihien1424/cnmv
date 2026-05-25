@@ -1,4 +1,4 @@
-//D:\CongNgheMoi-hien\CongNgheMoi\Backend\services\payment.service.js
+// Backend/services/payment.service.js
 const crypto = require("crypto");
 const qs = require("qs");
 

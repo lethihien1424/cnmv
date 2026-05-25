@@ -7,11 +7,13 @@ import StoreFooter from '../components/StoreFooter';
 import { API_BASE_URL } from '../services/api';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
-type OrderItem = {
+type OrderDetail = {
   id: string;
   product_id: string;
   quantity: number;
   price_at_buy: number;
+  size?: string | null;
+  color?: string | null;
   product?: {
     id: string;
     name: string;
@@ -31,7 +33,7 @@ type Order = {
   recipient_name?: string;
   recipient_phone?: string;
   created_at: string;
-  items: OrderItem[];
+  items: OrderDetail[];
 };
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -44,7 +46,7 @@ const fmtDate = (s: string) =>
     hour: '2-digit', minute: '2-digit',
   });
 
-const getImg = (item: OrderItem, base: string) => {
+const getImg = (item: OrderDetail, base: string) => {
   const src = item.product?.image_url || item.product?.images?.[0];
   if (!src) return null;
   if (src.startsWith('http')) return src;
@@ -114,6 +116,20 @@ function OrderCard({ order }: { order: Order }) {
                 <p className="text-sm font-medium text-gray-800 truncate hover:text-cyan-600 transition-colors">
                   {item.product?.name ?? 'Sản phẩm'}
                 </p>
+                {(item.size || item.color) && (
+                  <div className="flex items-center gap-1 mt-0.5 flex-wrap">
+                    {item.size && (
+                      <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-blue-50 text-blue-600 border border-blue-100">
+                        Size: {item.size}
+                      </span>
+                    )}
+                    {item.color && (
+                      <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-pink-50 text-pink-600 border border-pink-100">
+                        Màu: {item.color}
+                      </span>
+                    )}
+                  </div>
+                )}
                 <p className="text-xs text-gray-400 mt-0.5">
                   x{item.quantity} · {fmt(Number(item.price_at_buy))} / cái
                 </p>

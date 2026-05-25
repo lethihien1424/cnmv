@@ -1,6 +1,7 @@
+// services/admin.store.service.js
 const storeRepository = require("../repositories/store.repository");
 const notificationRepository = require("../repositories/notification.repository");
-const { User, Store, Order, Product } = require("../models");
+const { User, Store, Order, Product, Address } = require("../models");
 const { Op } = require("sequelize");
 
 const STATUS = {
@@ -240,7 +241,7 @@ const getPendingB2CStores = async () => {
 const getUserNotifications = async (userId) => {
   return await notificationRepository.findAllByRecipientId(userId);
 };
-const updateStoreStatus = async (storeId, status) => {
+const updateStoreStatus = async (storeId, status, reason) => {
   if (!Object.values(STATUS).includes(status)) {
     const error = new Error(
       `status must be one of: ${Object.values(STATUS).join(", ")}`,
@@ -269,6 +270,14 @@ const updateStoreStatus = async (storeId, status) => {
   }
 
   store.status = status;
+
+  // Lưu lý do từ chối vào DB
+  if (status === STATUS.REJECTED) {
+    store.reject_reason = reason ? reason.trim() : null;
+  } else {
+    store.reject_reason = null; // Xóa lý do khi duyệt hoặc kích hoạt lại
+  }
+
   await store.save();
 
   let title = "";
@@ -276,16 +285,20 @@ const updateStoreStatus = async (storeId, status) => {
 
   switch (status) {
     case STATUS.APPROVED:
-      title = "Store application approved";
-      message = `Cửa hàng ${store.store_name} của bạn đã được duyệt thành công.`;
+      title = "Cửa hàng được duyệt";
+      message = `Ðơn đăng ký cửa hàng "${store.store_name}" của bạn đã được Admin duyệt. Bạn có thể bắt đầu bán hàng ngay!`;
       break;
-    case STATUS.REJECTED:
-      title = "Store application rejected";
-      message = `Đơn đăng ký cửa hàng ${store.store_name} của bạn đã bị từ chối.`;
+    case STATUS.REJECTED: {
+      title = "Cửa hàng bị từ chối";
+      const reasonText = store.reject_reason
+        ? `\nLý do: ${store.reject_reason}`
+        : "";
+      message = `Đơn đăng ký cửa hàng "${store.store_name}" của bạn đã bị từ chối.${reasonText}\n\nVui lòng kiểm tra lại hồ sơ và đăng ký lại.`;
       break;
+    }
     case STATUS.INACTIVE:
-      title = "Store deactivated";
-      message = `Cửa hàng ${store.store_name} của bạn đã bị Admin chuyển sang trạng thái Ngưng hoạt động.`;
+      title = "Cửa hàng ngưng hoạt động";
+      message = `Cửa hàng "${store.store_name}" của bạn đã được Admin chuyển sang trạng thái Ngưng hoạt động.`;
       break;
   }
 
@@ -361,6 +374,21 @@ const getAdminDashboardStats = async () => {
   };
 };
 
+const BASE_URL = (process.env.BASE_URL || "http://localhost:5000").replace(/\/$/, "");
+
+/**
+ * Tạo URL ảnh đầy đủ từ đường dẫn tương đối của multer.
+ * business_license_image có dạng: "uploads/document-xxxx.jpg"
+ */
+const buildLicenseImageUrl = (imagePath) => {
+  if (!imagePath) return null;
+  // Nếu đã là URL đầy đủ thì giữ nguyên
+  if (imagePath.startsWith("http")) return imagePath;
+  // Chuẩn hóa: bỏ dấu \ (Windows path) và đảm bảo có dấu /
+  const normalized = imagePath.replace(/\\/g, "/").replace(/^\//, "");
+  return `${BASE_URL}/${normalized}`;
+};
+
 const getAdminStoresWithDetails = async () => {
   const stores = await Store.findAll({
     include: [
@@ -394,12 +422,15 @@ const getAdminStoresWithDetails = async () => {
       (sum, order) => sum + Number(order.total_amount || 0),
       0,
     );
+    const storeData = store.toJSON();
 
     return {
-      ...store.toJSON(),
+      ...storeData,
       totalRevenue: revenue,
       totalOrders: (store.orders || []).length,
       totalProducts: (store.products || []).length,
+      // URL ảnh GPKD đầy đủ để Frontend hiển thị
+      business_license_image_url: buildLicenseImageUrl(storeData.business_license_image),
     };
   });
 };
@@ -449,11 +480,15 @@ const getAdminStoreDetail = async (storeId) => {
     0,
   );
 
+  const storeData = store.toJSON();
+
   return {
-    ...store.toJSON(),
+    ...storeData,
     totalRevenue: revenue,
     totalOrders: (store.orders || []).length,
     totalProducts: (store.products || []).length,
+    // URL ảnh GPKD đầy đủ để Frontend hiển thị
+    business_license_image_url: buildLicenseImageUrl(storeData.business_license_image),
   };
 };
 
@@ -562,7 +597,15 @@ const getAdminUsersWithDetails = async () => {
       {
         model: Store,
         as: "stores",
-        attributes: ["id", "store_name", "store_type", "status", "createdAt"],
+        attributes: [
+          "id",
+          "store_name",
+          "store_type",
+          "status",
+          "createdAt",
+          "contact_phone",
+          "address",
+        ],
       },
       {
         model: Order,
@@ -574,6 +617,12 @@ const getAdminUsersWithDetails = async () => {
           "payment_status",
           "createdAt",
         ],
+      },
+      {
+        model: Address,
+        as: "addresses",
+        where: { is_default: true },
+        required: false,
       },
     ],
     order: [["created_at", "DESC"]],
@@ -589,6 +638,21 @@ const getAdminUsersWithDetails = async () => {
       (a, b) => new Date(b.createdAt) - new Date(a.createdAt),
     )[0];
 
+    let address = null;
+    let phone = null;
+
+    if ((user.role === "Business" || (user.stores || []).length > 1) && latestStore) {
+      address = latestStore.address;
+      phone = latestStore.contact_phone;
+    } else if (user.addresses?.[0]) {
+      const addr = user.addresses[0];
+      address = `${addr.detail}, ${addr.ward}, ${addr.district}, ${addr.province}`;
+      phone = addr.phone;
+    } else if (latestStore) {
+      address = latestStore.address;
+      phone = latestStore.contact_phone;
+    }
+
     return {
       ...user.toJSON(),
       totalOrders: (user.orders || []).length,
@@ -597,6 +661,8 @@ const getAdminUsersWithDetails = async () => {
       accountType:
         latestStore?.store_type || (user.role === "Business" ? "B2C" : "C2C"),
       latestStoreStatus: latestStore?.status || null,
+      address,
+      phone,
     };
   });
 };
@@ -622,6 +688,8 @@ const getAdminUserDetail = async (userId) => {
           "description",
           "business_license",
           "createdAt",
+          "contact_phone",
+          "address",
         ],
       },
       {
@@ -634,6 +702,12 @@ const getAdminUserDetail = async (userId) => {
           "payment_status",
           "createdAt",
         ],
+      },
+      {
+        model: Address,
+        as: "addresses",
+        where: { is_default: true },
+        required: false,
       },
     ],
   });
@@ -653,6 +727,21 @@ const getAdminUserDetail = async (userId) => {
     (a, b) => new Date(b.createdAt) - new Date(a.createdAt),
   )[0];
 
+  let address = null;
+  let phone = null;
+
+  if ((user.role === "Business" || (user.stores || []).length > 1) && latestStore) {
+    address = latestStore.address;
+    phone = latestStore.contact_phone;
+  } else if (user.addresses?.[0]) {
+    const addr = user.addresses[0];
+    address = `${addr.detail}, ${addr.ward}, ${addr.district}, ${addr.province}`;
+    phone = addr.phone;
+  } else if (latestStore) {
+    address = latestStore.address;
+    phone = latestStore.contact_phone;
+  }
+
   return {
     ...user.toJSON(),
     totalOrders: (user.orders || []).length,
@@ -661,6 +750,8 @@ const getAdminUserDetail = async (userId) => {
     accountType:
       latestStore?.store_type || (user.role === "Business" ? "B2C" : "C2C"),
     latestStoreStatus: latestStore?.status || null,
+    address,
+    phone,
   };
 };
 

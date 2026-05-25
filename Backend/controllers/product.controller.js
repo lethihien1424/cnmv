@@ -1,43 +1,70 @@
 //D:\CNM_cu\CongNgheMoi\Backend\controllers\product.controller.js
 const productService = require("../services/product.service");
 
+// Trong controller.js
 const createProduct = async (req, res) => {
   try {
+    const payload = { ...req.body };
+
+    console.log("Payload nhận được từ FE (createProduct):", { color: payload.color, size: payload.size });
+
+    // BẮT BUỘC: Nếu variants là chuỗi, phải biến nó thành Object trước khi đưa vào repository
+    if (typeof payload.variants === "string") {
+      payload.variants = JSON.parse(payload.variants);
+    }
+
+    // Tương tự với is_bulky nếu nó là chuỗi 'true'/'false'
+    if (typeof payload.is_bulky === "string") {
+      payload.is_bulky = payload.is_bulky === "true";
+    }
+
     const result = await productService.createProduct(
-      req.body,
+      payload,
       req.user,
-      req.imageUrls || [],
+      req.imageUrls,
     );
-    return res.status(201).json({
-      message: "Create product success",
-      data: result,
-    });
-  } catch (error) {
-    return res.status(error.statusCode || 500).json({
-      message: error.message || "Internal server error",
-    });
+    res.status(201).json(result);
+  } catch (err) {
+    res.status(400).json({ error: err.message });
   }
 };
+// Backend/controllers/product.controller.js
 
 const updateProduct = async (req, res) => {
   try {
+    const payload = { ...req.body };
+
+    console.log("Payload nhận được từ FE (updateProduct):", { color: payload.color, size: payload.size });
+
+    // Sửa lỗi boolean: nếu là chuỗi rỗng hoặc undefined, ép về false
+    if (
+      payload.is_bulky === "" ||
+      payload.is_bulky === undefined ||
+      payload.is_bulky === null
+    ) {
+      payload.is_bulky = false;
+    } else {
+      payload.is_bulky =
+        payload.is_bulky === "true" || payload.is_bulky === true;
+    }
+
+    // Parse variants
+    if (typeof payload.variants === "string") {
+      payload.variants = JSON.parse(payload.variants);
+    }
+
     const result = await productService.updateProduct(
       req.params.id,
-      req.body,
+      payload,
       req.user,
       req.imageUrls || [],
     );
-    return res.status(200).json({
-      message: "Update product success",
-      data: result,
-    });
+    res.status(200).json(result);
   } catch (error) {
-    return res.status(error.statusCode || 500).json({
-      message: error.message || "Internal server error",
-    });
+    console.error("LỖI:", error);
+    res.status(400).json({ message: error.message });
   }
 };
-
 const deleteProduct = async (req, res) => {
   try {
     await productService.deleteProduct(req.params.id, req.user);
@@ -134,9 +161,10 @@ const suggestFlashSale = async (req, res) => {
     });
   }
 };
+// Kiểm tra ở cuối file của bạn, phải chắc chắn có 'updateProduct' ở đây:
 module.exports = {
   createProduct,
-  updateProduct,
+  updateProduct, // Dòng này PHẢI CÓ
   deleteProduct,
   searchProducts,
   getProductDetail,

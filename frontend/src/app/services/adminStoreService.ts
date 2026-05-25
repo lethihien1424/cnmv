@@ -1,3 +1,4 @@
+// D:\CongNgheMoi_new\CongNgheMoi\frontend\src\app\services\adminStoreService.ts
 import { apiRequest } from './api';
 
 export type AdminStoreStatus = 'PENDING' | 'APPROVED' | 'REJECTED' | 'INACTIVE';
@@ -8,7 +9,9 @@ export interface AdminStore {
   store_type: 'B2C' | 'C2C';
   store_name: string;
   description: string | null;
-  business_license: string | null;
+  business_license: string | null;       // Mã số GPKD (text)
+  business_license_image: string | null;  // Đường dẫn tương đối (uploads/xxx.jpg)
+  business_license_image_url: string | null; // URL đầy đủ (http://localhost:5000/uploads/xxx.jpg)
   status: AdminStoreStatus;
   tax_code: string | null;
   representative_name: string | null;
@@ -66,7 +69,11 @@ export interface AdminUserDetail {
     status: string;
     description?: string | null;
     business_license?: string | null;
+    contact_phone?: string | null;
+    contact_email?: string | null;
+    address?: string | null;
     createdAt: string;
+    updatedAt?: string;
   }>;
   orders: Array<{
     id: string;
@@ -80,6 +87,23 @@ export interface AdminUserDetail {
   totalStores: number;
   accountType: 'C2C' | 'B2C';
   latestStoreStatus: string | null;
+  address?: string | null;
+  phone?: string | null;
+  // Đơn đã bán (store orders) — chỉ có khi có shop
+  storeOrders?: Array<{
+    id: string;
+    total_amount: number;
+    shipping_fee?: number;
+    order_status: string;
+    payment_status: string;
+    payment_method?: string;
+    shipping_address?: string;
+    createdAt?: string;
+    created_at?: string;
+    store_id?: string;
+  }>;
+  totalStoreOrders?: number;
+  totalStoreRevenue?: number;
 }
 
 const ADMIN_STORES_PATH = '/admin';
@@ -112,12 +136,13 @@ export async function updateAdminStoreStatus(
   storeId: string,
   status: AdminStoreStatus,
   token?: string | null,
+  reason?: string,
 ): Promise<AdminStore> {
   return apiRequest<AdminStore>(
     `${ADMIN_STORES_PATH}/stores/${storeId}/status`,
     {
       method: 'PUT',
-      body: JSON.stringify({ status }),
+      body: JSON.stringify({ status, reason: reason?.trim() || undefined }),
     },
     token ?? localStorage.getItem('token'),
   );
@@ -136,6 +161,10 @@ export interface OcrScanResult {
   matchScore: number;
   /** true nếu matchScore >= 0.9 */
   isMatch: boolean;
+  /** true nếu phát hiện pixel màu đỏ (dấu mộc đỏ) trong ảnh */
+  has_red_stamp?: boolean;
+  /** Thông tin debug về tỷ lệ pixel đỏ */
+  redStampDebug?: string;
   details: {
     /** MST có khớp chính xác không */
     taxCodeMatch: boolean;
@@ -164,12 +193,12 @@ export async function scanBusinessLicense(
 }
 
 export async function deleteDashboardUser(userId: string, token?: string | null): Promise<{ message: string }> {
-  return apiRequest<{ message: string }>(`/user/${userId}`, { method: 'DELETE' }, token ?? localStorage.getItem('token'));
+  return apiRequest<{ message: string }>(`/users/${userId}`, { method: 'DELETE' }, token ?? localStorage.getItem('token'));
 }
 
 export async function updateDashboardUser(userId: string, data: Partial<AdminUserDetail>, token?: string | null): Promise<AdminUserDetail> {
   return apiRequest<AdminUserDetail>(
-    `/user/${userId}`,
+    `/users/${userId}`,
     {
       method: 'PUT',
       body: JSON.stringify(data),

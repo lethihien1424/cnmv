@@ -1,4 +1,5 @@
-//D:\CNM_cu\CongNgheMoi\Backend\repositories\address.repository.js
+// D:\CNM_cu\CongNgheMoi\Backend\repositories\address.repository.js
+
 const { Address } = require("../models");
 
 const createAddress = async (data) => {
@@ -12,6 +13,10 @@ const getByUser = async (userId) => {
   });
 };
 
+const getAddressById = async (id) => {
+  return await Address.findByPk(id);
+};
+
 const resetDefault = async (userId) => {
   return await Address.update(
     { is_default: false },
@@ -22,5 +27,6 @@ const resetDefault = async (userId) => {
 module.exports = {
   createAddress,
   getByUser,
+  getAddressById, 
   resetDefault,
 };

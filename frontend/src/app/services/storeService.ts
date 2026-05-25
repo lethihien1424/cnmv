@@ -1,3 +1,4 @@
+// frontend/src/app/services/storeService.ts
 import { Store, StoreStatus } from '../types/store';
 
 // Initialize mock stores in localStorage

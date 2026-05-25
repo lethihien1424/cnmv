@@ -1,94 +1,127 @@
-// services/shipping.service.js
-const { Address } = require("../models");
+// Backend/services/shipping.service.js
+const geolib = require("geolib");
+const { Address, Store } = require("../models");
 
-const normalizeProvince = (name) => {
-  if (!name) return "";
-  return name.toLowerCase()
-    .replace(/tp\.?\s*/g, "")
-    .replace(/thành phố/g, "")
+// ─── Normalize text ──────────────────────────────────
+const normalize = (s = "") =>
+  s
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(
+      /quan |huyen |thi xa |tp\.|thanh pho |phuong |xa |thi tran /g,
+      ""
+    )
+    .replace(/[^a-z0-9\s]/g, "")
     .replace(/\s+/g, " ")
     .trim();
-};
 
-const REGIONS = {
-  NORTH: ["hà nội", "hà giang", "cao bằng", "bắc kạn", "tuyên quang", "lào cai", "điện biên", "lai châu", "sơn la", "yên bái", "hoà bình", "thái nguyên", "lạng sơn", "quảng ninh", "bắc giang", "phú thọ", "vĩnh phúc", "bắc ninh", "hải dương", "hải phòng", "hưng yên", "thái bình", "hà nam", "nam định", "ninh bình"],
-  CENTRAL: ["thanh hóa", "nghệ an", "hà tĩnh", "quảng bình", "quảng trị", "thừa thiên huế", "đà nẵng", "quảng nam", "quảng ngãi", "bình định", "phú yên", "khánh hòa", "ninh thuận", "bình thuận", "kon tum", "gia lai", "đắk lắk", "đắk nông", "lâm đồng"],
-  SOUTH: ["bình phước", "tây ninh", "bình dương", "đồng nai", "bà rịa - vũng tàu", "hồ chí minh", "long an", "tiền giang", "bến tre", "trà vinh", "vĩnh long", "đồng tháp", "an giang", "kiên giang", "cần thơ", "hậu giang", "sóc trăng", "bạc liêu", "cà mau", "hcm"]
-};
+// ─── Fee table ───────────────────────────────────────
+//  Mức phí chuẩn (hàng thường) theo vị trí / khoảng cách
+//  bulky multiplier tuỳ tier (xem bên dưới)
+const TIERS = [
 
-const getRegion = (province) => {
-  const p = normalizeProvince(province);
-  if (REGIONS.NORTH.some(x => p.includes(x))) return "NORTH";
-  if (REGIONS.CENTRAL.some(x => p.includes(x))) return "CENTRAL";
-  if (REGIONS.SOUTH.some(x => p.includes(x))) return "SOUTH";
-  return null;
-};
+  { label: "same_district", fee: 15000, bulkyMul: 4, eta: "1-2 ngày" },
 
-const calculateShippingFee = async (userId, addressId, serviceType = 2, shippingProvider = 'GHN') => {
+  { label: "same_province", fee: 30000, bulkyMul: 3, eta: "2-3 ngày" },
+
+  { label: "dist_50", fee: 35000, maxKm: 50, bulkyMul: 3, eta: "3-5 ngày" },
+
+  { label: "dist_100", fee: 45000, maxKm: 100, bulkyMul: 3, eta: "3-5 ngày" },
+
+  { label: "dist_200", fee: 60000, maxKm: 200, bulkyMul: 2, eta: "4-6 ngày" },
+
+  { label: "dist_far", fee: 80000, maxKm: Infinity, bulkyMul: 2, eta: "5-7 ngày" },
+
+];
+
+// Express chỉ áp dụng khi distance <= EXPRESS_MAX_KM
+const EXPRESS_MAX_KM     = 10;
+const EXPRESS_FEE        = 60_000;   // hàng thường
+const EXPRESS_BULKY_FEE  = 120_000;  // hàng cồng kềnh
+const EXPRESS_ETA        = "1-3 giờ";
+
+// ─── Core calculator ─────────────────────────────────
+const calculateShippingFee = async (
+  userId,
+  addressId,
+  shippingType = "STANDARD",
+  storeId,
+  isBulky = false
+) => {
   try {
-    if (!addressId) {
-      throw new Error("Vui lòng chọn địa chỉ để tính phí vận chuyển");
-    }
+    // ── Address ───────────────────────────────────────
     const address = await Address.findByPk(addressId);
-    if (!address || String(address.user_id) !== String(userId)) {
-      throw new Error("Địa chỉ không hợp lệ hoặc không thuộc về người dùng");
+    if (!address)
+      return { success: false, message: "Địa chỉ không tồn tại" };
+
+    if (String(address.user_id) !== String(userId))
+      return { success: false, message: "Địa chỉ không thuộc về user" };
+
+    // ── Store ─────────────────────────────────────────
+    const store = await Store.findByPk(storeId);
+    if (!store)
+      return { success: false, message: "Shop không tồn tại" };
+
+    // ── Check lat/lng ─────────────────────────────────
+    if (
+      !store.latitude  || !store.longitude ||
+      !address.latitude || !address.longitude
+    ) {
+      return { success: false, message: "Thiếu tọa độ để tính phí ship" };
     }
 
-    const shopProvinceRaw = process.env.GHN_FROM_PROVINCE_NAME || "TP. HCM";
-    const shopProvince = normalizeProvince(shopProvinceRaw);
-    const userProvince = normalizeProvince(address.province);
+    // ── Distance (km) ─────────────────────────────────
+    const distanceM = geolib.getDistance(
+      { latitude: Number(store.latitude),   longitude: Number(store.longitude)   },
+      { latitude: Number(address.latitude), longitude: Number(address.longitude) }
+    );
+    const distance = distanceM / 1000;
 
-    const isSameProvince = shopProvince === userProvince ||
-      (shopProvince.includes("hcm") && userProvince.includes("hcm")) ||
-      (shopProvince.includes("hà nội") && userProvince.includes("hà nội"));
-
-    // Hỏa tốc (Express) chỉ áp dụng nội tỉnh
-    if (serviceType === 1) {
-      if (isSameProvince) {
+    // ── Express path ──────────────────────────────────
+    if (shippingType === "EXPRESS") {
+      if (distance > EXPRESS_MAX_KM) {
         return {
-          success: true,
-          shippingFee: 20000,
-          serviceType: 1,
-          serviceName: "Hỏa tốc",
-          estimatedDelivery: "Trong ngày",
-          address
+          success: false,
+          message: `Hỏa tốc chỉ hỗ trợ trong phạm vi ${EXPRESS_MAX_KM}km`,
         };
-      } else {
-        throw new Error("Dịch vụ hỏa tốc chỉ áp dụng cho đơn hàng cùng tỉnh/thành phố");
       }
-    }
-
-    // Giao hàng tiêu chuẩn
-    if (isSameProvince) {
+      const fee = isBulky ? EXPRESS_BULKY_FEE : EXPRESS_FEE;
       return {
         success: true,
-        shippingFee: 0, // Miễn phí nội tỉnh
-        serviceType: 2,
-        serviceName: "Tiêu chuẩn",
-        estimatedDelivery: "2-3 ngày",
-        address
+        shippingFee: fee,
+        distanceKm: Number(distance.toFixed(1)),
+        estimatedDeliveryTime: EXPRESS_ETA,
       };
     }
 
-    const shopRegion = getRegion(shopProvince);
-    const userRegion = getRegion(userProvince);
+    // ── Standard path: xác định tier ─────────────────
+    const storeAddr  = normalize(store.address || "");
+    const sameDistrict = storeAddr.includes(normalize(address.district));
+    const sameProvince = storeAddr.includes(normalize(address.province));
 
-    let shippingFee = 30000; // Mặc định khác tỉnh cùng miền
-    if (shopRegion && userRegion && shopRegion !== userRegion) {
-      // Khác miền
-      shippingFee = shippingProvider === 'J&T' ? 60000 : 50000;
+    let tier;
+    if (sameDistrict) {
+      tier = TIERS.find((t) => t.label === "same_district");
+    } else if (sameProvince) {
+      tier = TIERS.find((t) => t.label === "same_province");
+    } else {
+      tier = TIERS.find((t) => t.label !== "same_district" && t.label !== "same_province" && distance <= t.maxKm);
     }
+
+    if (!tier) tier = TIERS[TIERS.length - 1]; // fallback to furthest
+
+    const fee = isBulky ? tier.fee * tier.bulkyMul : tier.fee;
 
     return {
       success: true,
-      shippingFee,
-      serviceType: 2,
-      serviceName: shippingProvider === 'J&T' ? "J&T Express" : "Giao Hàng Nhanh",
-      estimatedDelivery: "3-5 ngày",
-      address
+      shippingFee: fee,
+      distanceKm: Number(distance.toFixed(1)),
+      estimatedDeliveryTime: tier.eta,
     };
+
   } catch (error) {
-    console.error("Calculate Shipping Fee Error:", error);
+    console.error("calculateShippingFee error:", error);
     return { success: false, message: error.message };
   }
 };

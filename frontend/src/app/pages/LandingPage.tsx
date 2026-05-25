@@ -160,33 +160,52 @@ export default function LandingPage() {
         soldPercent: [45, 53, 61, 69, 77, 85][index % 6],
       }));
 
-  const visibleProducts = React.useMemo(() => {
-    const keyword = activeSearchQuery.trim().toLowerCase();
-    const hasCategoryFilter = Boolean(activeCategoryId);
-    const matchesCategory = (product: Product) => !activeCategoryId || product.category_id === activeCategoryId;
+  // const visibleProducts = React.useMemo(() => {
+  //   const keyword = activeSearchQuery.trim().toLowerCase();
+  //   const hasCategoryFilter = Boolean(activeCategoryId);
+  //   const matchesCategory = (product: Product) => !activeCategoryId || product.category_id === activeCategoryId;
 
-    if (!keyword && !hasCategoryFilter) {
-      return products.slice(0, 8);
-    }
+  //   if (!keyword && !hasCategoryFilter) {
+  //     return products.slice(0, 8);
+  //   }
 
-    return products.filter((product) => {
-      if (!matchesCategory(product)) {
-        return false;
-      }
+  //   return products.filter((product) => {
+  //     if (!matchesCategory(product)) {
+  //       return false;
+  //     }
 
-      if (!keyword) {
-        return true;
-      }
+  //     if (!keyword) {
+  //       return true;
+  //     }
 
-      const productName = product.name.toLowerCase();
-      const storeName = product.store?.store_name?.toLowerCase() || '';
-      const ownerName = product.store?.owner?.username?.toLowerCase() || '';
-      const categoryName = product.category_id ? (categoryNameById.get(product.category_id)?.toLowerCase() || '') : '';
+  //     const productName = product.name.toLowerCase();
+  //     const storeName = product.store?.store_name?.toLowerCase() || '';
+  //     const ownerName = product.store?.owner?.username?.toLowerCase() || '';
+  //     const categoryName = product.category_id ? (categoryNameById.get(product.category_id)?.toLowerCase() || '') : '';
 
-      return [productName, storeName, ownerName, categoryName].some((value) => value.includes(keyword));
-    });
-  }, [activeCategoryId, activeSearchQuery, categoryNameById, products]);
+  //     return [productName, storeName, ownerName, categoryName].some((value) => value.includes(keyword));
+  //   });
+  // }, [activeCategoryId, activeSearchQuery, categoryNameById, products]);
+const visibleProducts = React.useMemo(() => {
+  const keyword = activeSearchQuery.trim().toLowerCase();
+  
+  // Nếu không có filter nào, trả về toàn bộ danh sách (đã slice 8 hoặc toàn bộ tùy bạn)
+  if (!keyword && !activeCategoryId) {
+    return products; 
+  }
 
+  return products.filter((product) => {
+    // Lọc danh mục
+    const matchesCategory = !activeCategoryId || product.category_id === activeCategoryId;
+    
+    // Lọc từ khóa
+    const matchesKeyword = !keyword || 
+      product.name.toLowerCase().includes(keyword) || 
+      (product.store?.store_name?.toLowerCase() || '').includes(keyword);
+
+    return matchesCategory && matchesKeyword;
+  });
+}, [activeCategoryId, activeSearchQuery, products]);
   return (
     <div className="min-h-screen bg-white">
       <StoreHeader
@@ -311,7 +330,8 @@ export default function LandingPage() {
                 </div>
                 <CardContent className="p-4">
                   <h3 className="font-medium mb-2 line-clamp-2 min-h-10 group-hover:text-cyan-600 transition-colors">{item.name}</h3>
-                  <p className="text-red-500 font-bold text-lg mb-2">{formatPrice(item.price)}</p>
+                  <p className="text-2xl font-extrabold text-cyan-600 tracking-tight">{formatPrice(item.price)}</p>
+                  
                   <div className="relative h-4 w-full rounded-full bg-cyan-100 overflow-hidden mt-1">
                     <div className="absolute top-0 left-0 h-full rounded-full bg-gradient-to-r from-cyan-500 to-blue-500" style={{ width: `${item.soldPercent}%` }} />
                     <span className="absolute inset-0 flex items-center justify-center text-[9px] font-bold text-white uppercase drop-shadow-md z-10">Đã bán {item.soldPercent}%</span>
@@ -343,11 +363,11 @@ export default function LandingPage() {
                     : 'Sản phẩm đang được đăng bán trên trang chủ'}
               </p>
             </div>
-            <div className="flex gap-2">
+            {/* <div className="flex gap-2">
               <Button variant="outline">Hot nhất</Button>
               <Button variant="ghost">Mới nhất</Button>
               <Button variant="ghost">Bán chạy</Button>
-            </div>
+            </div> */}
           </div>
           {productsLoading ? (
             <p className="text-gray-500">Đang tải sản phẩm từ các shop...</p>
@@ -395,20 +415,19 @@ export default function LandingPage() {
             </div>
           )}
 
-          <div className="text-center mt-8">
-            <Button
-              size="lg"
-              variant="outline"
-              className="px-8"
-              onClick={() => {
-                setActiveSearchQuery('');
-                setActiveCategoryId(null);
-              }}
-            >
-              Xem thêm sản phẩm
-              <ArrowRight className="size-4 ml-2" />
-            </Button>
-          </div>
+         <Button
+  size="lg"
+  variant="outline"
+  className="px-8"
+  onClick={() => {
+    setActiveSearchQuery('');   // Reset tìm kiếm
+    setActiveCategoryId(null); // Reset bộ lọc danh mục
+    setSearchValue('');        // Reset ô input tìm kiếm
+  }}
+>
+  Xem thêm sản phẩm
+  <ArrowRight className="size-4 ml-2" />
+</Button>
         </div>
       </section>
 

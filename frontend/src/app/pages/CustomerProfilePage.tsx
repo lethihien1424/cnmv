@@ -1,4 +1,4 @@
-//D:\CongNgheMoi-hien\CongNgheMoi\frontend\src\app\pages\CustomerProfilePage.tsx
+//frontend/src/app/pages/CustomerProfilePage.tsx
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { Link, useNavigate } from 'react-router';
@@ -123,7 +123,7 @@ export default function CustomerProfilePage() {
             o.payment_status === 'PAID' &&
             !o.is_reviewed
           ).length,
-          cancelled: orders.filter(o => o.order_status === 'CANCELLED').length,
+         cancelled: orders.filter(o => o.order_status === 'CANCELLED' || o.order_status === 'REFUNDED').length,
           // Đánh giá: DELIVERED + PAID + ĐÃ CÓ trong bảng reviews
           review: orders.filter(o =>
             o.order_status === 'DELIVERED' &&
@@ -242,16 +242,24 @@ export default function CustomerProfilePage() {
 
   const vouchers = [
     { title: 'Trang Chính',       icon: '🏆', subtitle: 'Nhận ngay 4.4 Voucher' },
-    { title: 'ShopeeVIP',         icon: '👑', subtitle: 'Ưu đãi độc quyền' },
+    { title: 'VIP',         icon: '👑', subtitle: 'Ưu đãi độc quyền' },
     { title: 'Hàng Mới Về Sẵn',  icon: '🎁', subtitle: 'Giảm giá đến 50%' },
     { title: 'Mặc Trend Sống...',  icon: '🔥', subtitle: 'Khám phá xu hướng' },
   ];
 
   const utilities = [
-    { title: 'Ví ShopeePay',  Icon: Wallet,     subtitle: 'Kích hoạt ngay',                     badge: 'Kích hoạt ngay',            color: 'text-cyan-700 bg-cyan-50',   onClick: undefined, disabled: false },
-    { title: 'SPaylater',     Icon: CreditCard, subtitle: 'Kích hoạt nhận ngay 150.000₫',        badge: 'Kích hoạt nhận ngay 150k',  color: 'text-blue-700 bg-blue-50',   onClick: undefined, disabled: false },
     {
-      title: 'Shopee Xu',
+    title: 'Ví Của Tôi',
+    Icon: Wallet,
+    subtitle: 'Xem số dư và lịch sử giao dịch',
+    badge: 'Ví thanh toán',
+    color: 'text-cyan-700 bg-cyan-50',
+    onClick: () => navigate('/my-wallet'),
+    disabled: false,
+  },
+    { title: 'SHublater',     Icon: CreditCard, subtitle: 'Kích hoạt nhận ngay 150.000₫',        badge: 'Kích hoạt nhận ngay 150k',  color: 'text-blue-700 bg-blue-50',   onClick: undefined, disabled: false },
+    {
+      title: 'Shop Hub Xu',
       Icon: Coins,
       subtitle: `Số dư: ${dailyXu.xuBalance.toLocaleString('vi-VN')} Xu`,
       badge: dailyXu.canClaim ? `Nhận ngay ${dailyXu.dailyAmount} Xu` : 'Đã nhận Xu hôm nay',
