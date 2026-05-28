@@ -123,6 +123,11 @@ export default function SellerDashboard() {
   // State cho AI Moderation - đánh dấu khi backend trả về lỗi kiểm duyệt
   const [isModerationError, setIsModerationError] = useState(false);
   const [overview, setOverview] = useState<any>(null);
+  const [dateFilterType, setDateFilterType] = useState<'day' | 'month' | 'year'>('month');
+  const [selectedDate, setSelectedDate] = useState<string>(() => {
+    const now = new Date();
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+  });
   const [recentOrders, setRecentOrders] =
   useState<Order[]>([]);
   
@@ -244,8 +249,31 @@ useEffect(() => {
 
       if (!storeId) return;
 
-      const data =
-  await dashboardAPI.getStoreOverview(storeId);
+      const query: any = {};
+
+if (dateFilterType === 'day') {
+
+  query.period = 'day';
+  query.date = selectedDate;
+}
+
+if (dateFilterType === 'month') {
+
+  query.period = 'month';
+  query.month = selectedDate;
+}
+
+if (dateFilterType === 'year') {
+
+  query.period = 'year';
+  query.year = selectedDate;
+}
+
+const data =
+  await dashboardAPI.getStoreOverview(
+    storeId,
+    query
+  );
 
 setOverview(data);
 
@@ -335,6 +363,7 @@ setRecentOrders(orders);
     case 'CANCELLED':  return <Badge className="bg-red-50 text-red-800 border border-red-200">Đã hủy</Badge>;
     case 'AVAILABLE':  return <Badge className="bg-green-50 text-green-800 border border-green-200">Đang bán</Badge>;
     case 'OUT_OF_STOCK': return <Badge className="bg-red-50 text-red-800 border border-red-200">Hết hàng</Badge>;
+    case 'DISCONTINUED': return <Badge className="bg-gray-50 text-gray-800 border border-gray-200">Ngừng bán</Badge>;
     default: return <Badge>{status}</Badge>;
   }
 };
@@ -1221,6 +1250,79 @@ const handleSubmitProduct = async (event: React.FormEvent<HTMLFormElement>) => {
         );
       })}
     </div>
+ {/* DATE TYPE */}
+<div>
+  <p className="text-sm mb-1 text-gray-500">Lọc theo</p>
+  <select
+    value={dateFilterType}
+    onChange={(e) => setDateFilterType(e.target.value as any)}
+    className="border rounded-xl px-4 py-2"
+  >
+    <option value="day">Ngày</option>
+    <option value="month">Tháng</option>
+    <option value="year">Năm</option>
+  </select>
+</div>
+<select
+  value={dateFilterType}
+
+  onChange={(e) => {
+
+    const value =
+      e.target.value as
+      'day' | 'month' | 'year';
+
+    setDateFilterType(value);
+
+    const now =
+      new Date();
+
+    // DAY
+    if (value === 'day') {
+
+      setSelectedDate(
+        now
+          .toISOString()
+          .split('T')[0]
+      );
+    }
+
+    // MONTH
+    if (value === 'month') {
+
+      setSelectedDate(
+        `${now.getFullYear()}-${String(
+          now.getMonth() + 1
+        ).padStart(2, '0')}`
+      );
+    }
+
+    // YEAR
+    if (value === 'year') {
+
+      setSelectedDate(
+        String(
+          now.getFullYear()
+        )
+      );
+    }
+  }}
+
+  className="border rounded-xl px-4 py-2"
+></select>
+{/* DATE */}
+<div>
+  <p className="text-sm mb-1 text-gray-500">
+    {dateFilterType === 'day' ? 'Chọn ngày' : dateFilterType === 'month' ? 'Chọn tháng' : 'Chọn năm'}
+  </p>
+  <Input
+    type={dateFilterType === 'day' ? 'date' : dateFilterType === 'month' ? 'month' : 'number'}
+    value={selectedDate}
+    onChange={(e) => setSelectedDate(e.target.value)}
+    className="w-[180px]"
+  />
+</div>
+
 
     {/* Charts */}
     <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">

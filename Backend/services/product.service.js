@@ -1183,6 +1183,8 @@ const deleteProduct = async (id, user) => {
   }
 
   await validateManagedStore(product.store_id, user);
+  // Đặt trạng thái DISCONTINUED trước khi soft-delete
+  await product.update({ status: "DISCONTINUED" });
   await productRepository.deleteProduct(product);
 };
 
@@ -1196,6 +1198,7 @@ const searchProducts = async (query) => {
     limit,
     offset,
     use_ai,
+    include_discontinued,
   } = query;
 
   if (use_ai === "true" && keyword && keyword.length > 3) {
@@ -1261,6 +1264,7 @@ const searchProducts = async (query) => {
     storeType,
     limit: safeLimit,
     offset: safeOffset,
+    includeDiscontinued: include_discontinued === "true",
   });
 
   return {

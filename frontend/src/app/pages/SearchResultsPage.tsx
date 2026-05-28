@@ -142,29 +142,29 @@ export default function SearchResultsPage() {
           ) : (
             <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-5">
               {products.map((product) => (
-                <Card key={product.id} className="overflow-hidden border-slate-200 bg-white shadow-sm transition hover:-translate-y-1 hover:shadow-md cursor-pointer" onClick={() => navigate(`/product/${product.id}`)}>
-                  <div className="relative">
-                    <ImageWithFallback
-                      src={product.images?.[0] || 'https://placehold.co/400x400?text=No+Image'}
-                      alt={product.name}
-                      className="h-52 w-full object-cover"
-                    />
-                    {product.store?.store_type === 'B2C' ? (
-                      <Badge className="absolute left-2 top-2 z-10 bg-red-600 text-white font-bold rounded-sm px-2 py-0.5 text-xs hover:bg-red-700">
-                        Mall
-                      </Badge>
-                    ) : null}
-                  </div>
-                  <CardContent className="space-y-2 p-3">
-                    <p className="line-clamp-2 min-h-12 text-sm text-slate-800">{product.name}</p>
-                    <p className="text-lg font-semibold text-cyan-600">{formatMoney(Number(product.price || 0))}</p>
-                    <div className="flex items-center justify-between text-xs text-slate-500">
-                      <span>{product.store?.store_name || 'Cửa hàng'}</span>
-                      <span>Kho: {product.stock_quantity}</span>
+                  <Card key={product.id} className="overflow-hidden border-slate-200 bg-white shadow-sm transition hover:-translate-y-1 hover:shadow-md cursor-pointer" onClick={() => navigate(`/product/${product.id}`)}>
+                    <div className="relative">
+                      <ImageWithFallback
+                        src={product.images?.[0] || 'https://placehold.co/400x400?text=No+Image'}
+                        alt={product.name}
+                        className="h-52 w-full object-cover"
+                      />
+                      {product.store?.store_type === 'B2C' ? (
+                        <Badge className="absolute left-2 top-2 z-10 bg-red-600 text-white font-bold rounded-sm px-2 py-0.5 text-xs hover:bg-red-700">
+                          Mall
+                        </Badge>
+                      ) : null}
                     </div>
-                  </CardContent>
-                </Card>
-              ))}
+                    <CardContent className="space-y-2 p-3">
+                      <p className="line-clamp-2 min-h-12 text-sm text-slate-800">{product.name}</p>
+                      <p className="text-lg font-semibold text-cyan-600">{formatMoney(Number(product.price || 0))}</p>
+                      <div className="flex items-center justify-between text-xs text-slate-500">
+                        <span>{product.store?.store_name || 'Cửa hàng'}</span>
+                        <span>{`Kho: ${product.stock_quantity}`}</span>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
             </div>
           )}
         </section>

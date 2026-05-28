@@ -6,7 +6,10 @@ const createProduct = async (req, res) => {
   try {
     const payload = { ...req.body };
 
-    console.log("Payload nhận được từ FE (createProduct):", { color: payload.color, size: payload.size });
+    console.log("Payload nhận được từ FE (createProduct):", {
+      color: payload.color,
+      size: payload.size,
+    });
 
     // BẮT BUỘC: Nếu variants là chuỗi, phải biến nó thành Object trước khi đưa vào repository
     if (typeof payload.variants === "string") {
@@ -34,7 +37,10 @@ const updateProduct = async (req, res) => {
   try {
     const payload = { ...req.body };
 
-    console.log("Payload nhận được từ FE (updateProduct):", { color: payload.color, size: payload.size });
+    console.log("Payload nhận được từ FE (updateProduct):", {
+      color: payload.color,
+      size: payload.size,
+    });
 
     // Sửa lỗi boolean: nếu là chuỗi rỗng hoặc undefined, ép về false
     if (
@@ -108,6 +114,7 @@ const getProductDetail = async (req, res) => {
 };
 const setFlashSale = async (req, res) => {
   try {
+    console.log("setFlashSale payload:", req.body);
     const result = await productService.setFlashSale(
       req.params.id,
       req.body,
@@ -119,6 +126,7 @@ const setFlashSale = async (req, res) => {
       data: result,
     });
   } catch (error) {
+    console.error("setFlashSale error:", error.message);
     return res.status(error.statusCode || 500).json({
       message: error.message || "Internal server error",
     });

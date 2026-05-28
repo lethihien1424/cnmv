@@ -16,8 +16,22 @@ const createCart = async (userId) => {
 
 // ================= CART ITEM =================
 const findItem = async (cartId, productId, size = null, color = null) => {
-  const normSize = (size === undefined || size === null || String(size).trim() === "" || String(size).trim() === "null" || String(size).trim() === "undefined") ? null : String(size).trim();
-  const normColor = (color === undefined || color === null || String(color).trim() === "" || String(color).trim() === "null" || String(color).trim() === "undefined") ? null : String(color).trim();
+  const normSize =
+    size === undefined ||
+    size === null ||
+    String(size).trim() === "" ||
+    String(size).trim() === "null" ||
+    String(size).trim() === "undefined"
+      ? null
+      : String(size).trim();
+  const normColor =
+    color === undefined ||
+    color === null ||
+    String(color).trim() === "" ||
+    String(color).trim() === "null" ||
+    String(color).trim() === "undefined"
+      ? null
+      : String(color).trim();
 
   return await CartDetail.findOne({
     where: {
@@ -51,6 +65,7 @@ const getCartItems = async (cartId) => {
       {
         model: Product,
         as: "product",
+        paranoid: false, // Bao gồm cả sản phẩm đã soft-delete (ngừng bán)
       },
     ],
     order: [["created_at", "DESC"]],

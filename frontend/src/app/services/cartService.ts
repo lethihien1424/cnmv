@@ -13,6 +13,12 @@ export type CartDetail = {
     price: number;
     images?: string[];
     image_url?: string;
+    is_flash_sale?: boolean;
+    flash_sale_price?: number;
+    flash_sale_stock?: number;
+    flash_sale_sold?: number;
+    flash_sale_start_time?: string;
+    flash_sale_end_time?: string;
   };
 };
 

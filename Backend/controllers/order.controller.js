@@ -217,9 +217,15 @@ const { createPaymentUrl } = require("../services/vnpay.service");
 
 // ── Helper: validate VNPAY config sớm ───────────────────────────────────────
 const validateVnpayConfig = () => {
-  const required = ["VNP_TMNCODE", "VNP_HASH_SECRET", "VNP_URL", "VNP_RETURN_URL"];
+  const required = [
+    "VNP_TMNCODE",
+    "VNP_HASH_SECRET",
+    "VNP_URL",
+    "VNP_RETURN_URL",
+  ];
   const missing = required.filter((k) => !process.env[k]);
-  if (missing.length > 0) throw new Error(`Thiếu cấu hình VNPAY: ${missing.join(", ")}`);
+  if (missing.length > 0)
+    throw new Error(`Thiếu cấu hình VNPAY: ${missing.join(", ")}`);
 };
 
 // ── Helper: build response sau khi tạo order ────────────────────────────────
@@ -256,9 +262,20 @@ const buildOrderResponse = (res, orders, paymentMethod) => {
 const createFromCart = async (req, res) => {
   try {
     const userId = req.user.userId || req.user.id;
-    const {selected_items, payment_method, address_id, shipping_service_type = "STANDARD"} = req.body;
+    const {
+      selected_items,
+      payment_method,
+      address_id,
+      shipping_service_type = "STANDARD",
+    } = req.body;
     if (payment_method === "VNPAY") validateVnpayConfig();
-    const orders = await orderService.createOrderFromCart(userId,selected_items,payment_method,address_id,shipping_service_type);
+    const orders = await orderService.createOrderFromCart(
+      userId,
+      selected_items,
+      payment_method,
+      address_id,
+      shipping_service_type,
+    );
     return buildOrderResponse(res, orders, payment_method);
   } catch (error) {
     console.error("createFromCart error:", error);
@@ -270,9 +287,45 @@ const createFromCart = async (req, res) => {
 const buyNow = async (req, res) => {
   try {
     const userId = req.user.userId || req.user.id;
-    const { product_id, quantity, payment_method, address_id, shipping_service_type = "STANDARD", size = null, color = null } = req.body;
+    const {
+      quantity,
+      payment_method,
+      address_id,
+      shipping_service_type = "STANDARD",
+      size = null,
+      color = null,
+    } = req.body;
+
+    // Đọc product_id linh hoạt (đề phòng FE gửi 'id' hoặc 'productId')
+    const product_id = req.body.product_id || req.body.productId || req.body.id;
+
+    // Validate chi tiết
+    if (!address_id) {
+      return res
+        .status(400)
+        .json({ success: false, message: "Thiếu address_id" });
+    }
+    if (!product_id || !quantity) {
+      console.log("Dữ liệu FE gửi lên bị sai format:", req.body);
+      return res.status(400).json({
+        success: false,
+        message: "product_id hoặc quantity không hợp lệ",
+        received: { product_id, quantity },
+      });
+    }
+
     if (payment_method === "VNPAY") validateVnpayConfig();
-    const orders = await orderService.buyNow(userId, product_id, quantity, payment_method, address_id, shipping_service_type, size, color);
+
+    const orders = await orderService.buyNow(
+      userId,
+      product_id,
+      quantity,
+      payment_method,
+      address_id,
+      shipping_service_type,
+      size,
+      color,
+    );
     return buildOrderResponse(res, orders, payment_method);
   } catch (error) {
     console.error("buyNow error:", error);
@@ -281,8 +334,7 @@ const buyNow = async (req, res) => {
 };
 const createWalletTopup = async (req, res) => {
   try {
-    const userId =
-      req.user.userId || req.user.id;
+    const userId = req.user.userId || req.user.id;
 
     const { amount } = req.body;
 
@@ -302,8 +354,7 @@ const createWalletTopup = async (req, res) => {
       buyerId: userId,
     };
 
-    const payUrl =
-      createPaymentUrl(fakeOrder);
+    const payUrl = createPaymentUrl(fakeOrder);
 
     return res.json({
       success: true,
@@ -342,7 +393,10 @@ const getStoreOrders = async (req, res) => {
 const getOrderDetail = async (req, res) => {
   try {
     const order = await orderService.getOrderById(req.params.id);
-    if (!order) return res.status(404).json({ success: false, message: "Không tìm thấy đơn hàng" });
+    if (!order)
+      return res
+        .status(404)
+        .json({ success: false, message: "Không tìm thấy đơn hàng" });
     return res.json({ success: true, data: order });
   } catch (error) {
     return res.status(500).json({ success: false, message: error.message });
@@ -354,7 +408,17 @@ const updateOrderStatus = async (req, res) => {
   try {
     const { status } = req.body;
     const order = await orderService.updateOrderStatus(req.params.id, status);
-    return res.json({ success: true, message: "Cập nhật trạng thái thành công", data: order });
+
+    // Hoàn kho khi đơn hàng bị hủy
+    if (status === "CANCELLED" || status === "REFUNDED") {
+      await orderService.refundOrderStock(req.params.id);
+    }
+
+    return res.json({
+      success: true,
+      message: "Cập nhật trạng thái thành công",
+      data: order,
+    });
   } catch (error) {
     return res.status(400).json({ success: false, message: error.message });
   }
@@ -364,15 +428,24 @@ const updateOrderStatus = async (req, res) => {
 // Body: { cancel_reason: string, cancelled_by: 'CUSTOMER' | 'STORE' }
 const cancelOrder = async (req, res) => {
   try {
-    console.log("CANCEL BODY:", req.body);        // kiểm tra body
-    console.log("CANCEL PARAMS:", req.params);    // kiểm tra id
-    console.log("CANCEL USER:", req.user);        // kiểm tra user
+    console.log("CANCEL BODY:", req.body);
+    console.log("CANCEL PARAMS:", req.params);
+    console.log("CANCEL USER:", req.user);
     const { cancel_reason, cancelled_by } = req.body;
     const order = await orderService.cancelOrder(
       req.params.id,
       cancelled_by,
-      cancel_reason
+      cancel_reason,
     );
+
+    // Hoàn kho khi đơn hàng bị hủy (CANCELLED hoặc REFUNDED)
+    if (
+      order.order_status === "CANCELLED" ||
+      order.order_status === "REFUNDED"
+    ) {
+      await orderService.refundOrderStock(req.params.id);
+    }
+
     return res.json({
       success: true,
       message:
@@ -382,7 +455,7 @@ const cancelOrder = async (req, res) => {
       data: order,
     });
   } catch (error) {
-    console.error("CANCEL ERROR:", error);        // log full error
+    console.error("CANCEL ERROR:", error);
     return res.status(400).json({ success: false, message: error.message });
   }
 };

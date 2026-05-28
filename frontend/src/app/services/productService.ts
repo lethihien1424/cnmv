@@ -63,6 +63,8 @@ export interface Product {
   flash_sale_start_time?: string | null;
   flash_sale_end_time?: string | null;
 
+  deleted_at?: string | null;
+
   created_at: string;
   updated_at: string;
 
@@ -212,6 +214,7 @@ export async function getSellerProducts(options: {
   const products = await getProducts({
     limit: 100,
     store_type: options.storeType,
+    include_discontinued: 'true',
   });
 
   return products.filter((p) => {

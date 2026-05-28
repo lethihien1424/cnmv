@@ -30,6 +30,7 @@ const getReviewsByBuyer = async (buyerId) => {
         model: Product,
         as: "product",
         attributes: ["id", "name", "images"],
+        paranoid: false, // Bao gồm cả sản phẩm đã soft-delete (ngừng bán)
       },
     ],
     order: [["created_at", "DESC"]],

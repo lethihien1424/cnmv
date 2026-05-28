@@ -13,6 +13,51 @@ type Props = {
 const fmt = (n: number) =>
   new Intl.NumberFormat("vi-VN", { style: "currency", currency: "VND" }).format(n);
 
+/** Kiểm tra flash sale có đang active không */
+const isFlashSaleActive = (p: CartDetail["product"]) => {
+  if (!p) return false;
+  const now = new Date();
+  return !!(
+    p.is_flash_sale &&
+    p.flash_sale_price &&
+    (!p.flash_sale_start_time || new Date(p.flash_sale_start_time) <= now) &&
+    (!p.flash_sale_end_time || new Date(p.flash_sale_end_time) >= now)
+  );
+};
+
+/** Tính giá trung bình / 1 sản phẩm theo logic chia bậc flash sale */
+const getCartItemPrice = (item: CartDetail): number => {
+  const p = item.product;
+  if (!p) return 0;
+  if (!isFlashSaleActive(p)) return Number(p.price || 0);
+  const qty = item.quantity || 1;
+  const flashPrice = Number(p.flash_sale_price);
+  const originalPrice = Number(p.price || 0);
+  const flashSaleLimit = Number(p.flash_sale_stock || 0);
+  const alreadySold = Number(p.flash_sale_sold || 0);
+  const availableSlots = Math.max(0, flashSaleLimit - alreadySold);
+  const flashQty = Math.min(qty, availableSlots);
+  const normalQty = qty - flashQty;
+  const total = flashQty * flashPrice + normalQty * originalPrice;
+  return qty > 0 ? total / qty : originalPrice;
+};
+
+/** Tính tổng tiền cho 1 dòng (chia bậc) */
+const getCartItemTotal = (item: CartDetail): number => {
+  const p = item.product;
+  if (!p) return 0;
+  if (!isFlashSaleActive(p)) return Number(p.price || 0) * item.quantity;
+  const qty = item.quantity || 1;
+  const flashPrice = Number(p.flash_sale_price);
+  const originalPrice = Number(p.price || 0);
+  const flashSaleLimit = Number(p.flash_sale_stock || 0);
+  const alreadySold = Number(p.flash_sale_sold || 0);
+  const availableSlots = Math.max(0, flashSaleLimit - alreadySold);
+  const flashQty = Math.min(qty, availableSlots);
+  const normalQty = qty - flashQty;
+  return flashQty * flashPrice + normalQty * originalPrice;
+};
+
 export default function CartDrawer({ isOpen, onClose, onCountChange }: Props) {
   const navigate = useNavigate();
   const [items, setItems] = useState<CartDetail[]>([]);
@@ -104,7 +149,7 @@ export default function CartDrawer({ isOpen, onClose, onCountChange }: Props) {
   // ── Checkout ───────────────────────────────────────────────────────────
   const selectedItems = items.filter((i) => selected.has(i.id));
   const total = selectedItems.reduce(
-    (s, i) => s + (i.product?.price ?? 0) * i.quantity,
+    (s, i) => s + getCartItemTotal(i),
     0
   );
 
@@ -279,6 +324,28 @@ export default function CartDrawer({ isOpen, onClose, onCountChange }: Props) {
               </div>
             </div>
 
+            {/* Flash sale warnings */}
+            {selectedItems.some((i) => {
+              const p = i.product;
+              if (!p || !isFlashSaleActive(p)) return false;
+              const available = Math.max(0, Number(p.flash_sale_stock || 0) - Number(p.flash_sale_sold || 0));
+              return available > 0 && i.quantity > available;
+            }) && (
+              <div className="mb-3 space-y-1">
+                {selectedItems.map((i) => {
+                  const p = i.product;
+                  if (!p || !isFlashSaleActive(p)) return null;
+                  const available = Math.max(0, Number(p.flash_sale_stock || 0) - Number(p.flash_sale_sold || 0));
+                  if (available <= 0 || i.quantity <= available) return null;
+                  return (
+                    <p key={i.id} className="text-xs text-amber-600">
+                      ⚠️ {p.name}: {available} sp giá {fmt(Number(p.flash_sale_price))}, còn lại {i.quantity - available} sp giá gốc {fmt(Number(p.price))}
+                    </p>
+                  );
+                })}
+              </div>
+            )}
+
             <button
               onClick={handleCheckout}
               disabled={!selectedItems.length}
@@ -376,7 +443,13 @@ function CartRow({
   onRemove: () => void;
   onProductClick: () => void;
 }) {
-  const price = item.product?.price ?? 0;
+  const originalPrice = Number(item.product?.price ?? 0);
+  const flashActive = isFlashSaleActive(item.product);
+  const avgPrice = flashActive ? getCartItemPrice(item) : originalPrice;
+  const lineTotal = flashActive ? getCartItemTotal(item) : originalPrice * item.quantity;
+  const remaining = flashActive
+    ? Math.max(0, Number(item.product?.flash_sale_stock || 0) - Number(item.product?.flash_sale_sold || 0))
+    : 0;
 
   // Build tag list: chỉ hiện nếu có giá trị và không phải là chuỗi null/undefined/rỗng
   const isValidTag = (val: any) => {
@@ -451,7 +524,24 @@ function CartRow({
           </div>
         )}
 
-        <p className="text-[15px] font-bold text-red-500 mt-1">{fmt(price)}</p>
+        {/* Giá + Flash Sale badge */}
+        <div className="flex items-center gap-2 mt-1">
+          {flashActive ? (
+            <>
+              <span className="text-[15px] font-bold text-red-500">{fmt(avgPrice)}</span>
+              <span className="text-xs text-gray-400 line-through">{fmt(originalPrice)}</span>
+              <span className="text-[10px] font-bold text-white bg-red-500 px-1.5 py-0.5 rounded">🔥</span>
+            </>
+          ) : (
+            <span className="text-[15px] font-bold text-red-500">{fmt(originalPrice)}</span>
+          )}
+        </div>
+        {/* Warning khi mua vượt suất flash sale */}
+        {flashActive && remaining > 0 && item.quantity > remaining && (
+          <p className="text-[11px] text-amber-600 mt-0.5">
+            ⚠️ {remaining} sp giá {fmt(Number(item.product?.flash_sale_price))}, còn lại giá gốc
+          </p>
+        )}
 
         {/* +/- controls */}
         <div className="flex items-center gap-2 mt-2">
@@ -480,7 +570,7 @@ function CartRow({
           </button>
 
           <span className="text-xs text-gray-400 font-medium">
-            = {fmt(price * item.quantity)}
+            = {fmt(lineTotal)}
           </span>
         </div>
       </div>

@@ -127,17 +127,19 @@ transition-all duration-200 ease-in-out">
           ))}
         </section>
 
-        {/* GRID SẢN PHẨM */}
+     
         <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
           {visibleProducts.map((p) => (
-            <Card key={p.id} className="cursor-pointer hover:shadow-lg transition-all rounded-2xl border-0 shadow-sm" onClick={() => navigate(`/product/${p.id}`)}>
-              <ImageWithFallback src={p.images?.[0]} alt={p.name} className="aspect-square w-full object-cover rounded-t-2xl" />
-              <CardContent className="p-3">
-                <h3 className="text-sm font-medium line-clamp-2 h-10 text-slate-700">{p.name}</h3>
-                <p className="text-md font-bold text-cyan-600">{formatMoney(Number(p.price))}</p>
-              </CardContent>
-            </Card>
-          ))}
+              <Card key={p.id} className="cursor-pointer hover:shadow-lg transition-all rounded-2xl border-0 shadow-sm" onClick={() => navigate(`/product/${p.id}`)}>
+                <div className="relative">
+                  <ImageWithFallback src={p.images?.[0]} alt={p.name} className="aspect-square w-full object-cover rounded-t-2xl" />
+                </div>
+                <CardContent className="p-3">
+                  <h3 className="text-sm font-medium line-clamp-2 h-10 text-slate-700">{p.name}</h3>
+                  <p className="text-md font-bold text-cyan-600">{formatMoney(Number(p.price))}</p>
+                </CardContent>
+              </Card>
+            ))}
         </div>
       </main>
 

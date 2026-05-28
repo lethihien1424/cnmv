@@ -378,40 +378,40 @@ const visibleProducts = React.useMemo(() => {
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
               {visibleProducts.map((product) => (
-                <Card key={product.id} className="group hover:shadow-xl transition-all cursor-pointer overflow-hidden" onClick={() => navigate(`/product/${product.id}`)}>
-                  <div className="relative overflow-hidden bg-gray-50">
-                    <ImageWithFallback src={product.images?.[0] || '/src/imports/image.png'} alt={product.name} className="w-full h-64 object-cover group-hover:scale-105 transition-transform duration-300" />
-                    {product.store?.store_type === 'B2C' ? (
-                      <Badge className="absolute top-3 left-3 z-10 bg-red-600 text-white font-bold rounded-sm px-2 py-0.5 text-xs hover:bg-red-700">
-                        Mall
-                      </Badge>
-                    ) : null}
-                    <Button variant="ghost" size="icon" className="absolute top-3 right-3 bg-white/80 backdrop-blur-sm hover:bg-white">
-                      <Heart className="size-4" />
-                    </Button>
-                    <div className="absolute bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-black/60 to-transparent opacity-0 group-hover:opacity-100 transition-opacity">
-                      <Button className="w-full bg-white text-black hover:bg-gray-100">
-                        <ShoppingCart className="size-4 mr-2" /> Xem chi tiết
+                  <Card key={product.id} className="group hover:shadow-xl transition-all cursor-pointer overflow-hidden" onClick={() => navigate(`/product/${product.id}`)}>
+                    <div className="relative overflow-hidden bg-gray-50">
+                      <ImageWithFallback src={product.images?.[0] || '/src/imports/image.png'} alt={product.name} className="w-full h-64 object-cover group-hover:scale-105 transition-transform duration-300" />
+                      {product.store?.store_type === 'B2C' ? (
+                        <Badge className="absolute top-3 left-3 z-10 bg-red-600 text-white font-bold rounded-sm px-2 py-0.5 text-xs hover:bg-red-700">
+                          Mall
+                        </Badge>
+                      ) : null}
+                      <Button variant="ghost" size="icon" className="absolute top-3 right-3 bg-white/80 backdrop-blur-sm hover:bg-white">
+                        <Heart className="size-4" />
                       </Button>
+                      <div className="absolute bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-black/60 to-transparent opacity-0 group-hover:opacity-100 transition-opacity">
+                        <Button className="w-full bg-white text-black hover:bg-gray-100">
+                          <ShoppingCart className="size-4 mr-2" /> Xem chi tiết
+                        </Button>
+                      </div>
                     </div>
-                  </div>
-                  <CardContent className="p-4">
-                    <h3 className="font-medium mb-2 line-clamp-2 group-hover:text-cyan-600 transition-colors">{product.name}</h3>
-                    <div className="flex items-center gap-2 mb-2 text-sm text-gray-600">
-                      <Store className="size-4" />
-                      <span className="truncate">{product.store?.store_name || 'Cửa hàng'}</span>
-                    </div>
-                    <div className="flex items-center justify-between gap-2 mb-2">
-                      <span className="text-xl text-cyan-600">{formatPrice(Number(product.price || 0))}</span>
-                      <Badge variant="outline">{product.condition === 'NEW' ? 'Mới' : 'Đã qua sử dụng'}</Badge>
-                    </div>
-                    <div className="flex items-center justify-between text-xs text-gray-500">
-                      <span>Kho: {product.stock_quantity}</span>
-                      <span>{product.status === 'AVAILABLE' ? 'Đang bán' : product.status}</span>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
+                    <CardContent className="p-4">
+                      <h3 className="font-medium mb-2 line-clamp-2 group-hover:text-cyan-600 transition-colors">{product.name}</h3>
+                      <div className="flex items-center gap-2 mb-2 text-sm text-gray-600">
+                        <Store className="size-4" />
+                        <span className="truncate">{product.store?.store_name || 'Cửa hàng'}</span>
+                      </div>
+                      <div className="flex items-center justify-between gap-2 mb-2">
+                        <span className="text-xl text-cyan-600">{formatPrice(Number(product.price || 0))}</span>
+                        <Badge variant="outline">{product.condition === 'NEW' ? 'Mới' : 'Đã qua sử dụng'}</Badge>
+                      </div>
+                      <div className="flex items-center justify-between text-xs text-gray-500">
+                        <span>{`Kho: ${product.stock_quantity}`}</span>
+                        <span>Đang bán</span>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
             </div>
           )}
 

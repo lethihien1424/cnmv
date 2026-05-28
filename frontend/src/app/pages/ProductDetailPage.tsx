@@ -158,6 +158,19 @@ useEffect(() => {
   }, [id]);
 
   const product = productData || fallbackProduct;
+
+  // ── Flash Sale: helper kiểm tra Flash Sale còn hiệu lực ──────────────────
+  const isFlashSaleActive = (p: Product) => {
+    if (!p.is_flash_sale || !p.flash_sale_price) return false;
+    const now = new Date();
+    const startOk = !p.flash_sale_start_time || new Date(p.flash_sale_start_time) <= now;
+    const endOk = !p.flash_sale_end_time || new Date(p.flash_sale_end_time) >= now;
+    return startOk && endOk;
+  };
+
+  const getEffectivePrice = (p: Product) => {
+    return isFlashSaleActive(p) ? Number(p.flash_sale_price) : Number(p.price || 0);
+  };
   const currentUserRoleForChat: 'USER' | 'STORE' =
     user && (user.businessStoreId === product.store_id || user.c2cStoreId === product.store_id)
       ? 'STORE'
@@ -177,7 +190,7 @@ useEffect(() => {
       {
         color: product.condition === 'USED' ? 'Đã qua sử dụng' : 'Mới',
         size: 'Mặc định',
-        price: Number(product.price || 0),
+        price: getEffectivePrice(product),
         stock_quantity: Number(product.stock_quantity || 0),
         image_url: product.images?.[0],
       },
@@ -370,7 +383,11 @@ useEffect(() => {
   }
 };
 
-  const displayPrice = Number(selectedVariant?.price || product.price || 0);
+  // Nếu có flash sale active, ưu tiên giá flash sale; nếu có variant thì dùng variant price
+  const variantPrice = selectedVariant?.price || 0;
+  const displayPrice = isFlashSaleActive(product)
+    ? Number(product.flash_sale_price)
+    : (variantPrice > 0 ? variantPrice : Number(product.price || 0));
   const displayStock = Number(selectedVariant?.stock_quantity || product.stock_quantity || 0);
 
   // ==================== HÀM THÊM VÀO GIỎ HÀNG ====================
@@ -467,7 +484,7 @@ useEffect(() => {
 
   product: {
     ...product,
-    price: selectedVariant.price || product.price,
+    // GIỮ NGUYÊN product.price (giá gốc) để CheckoutPage tính bậc giá Flash Sale
     name: product.name,
     image_url:
       resolveVariantImage(selectedVariant) ||
@@ -629,13 +646,55 @@ useEffect(() => {
                     {/* Price */}
                     <div className="bg-gray-50 p-4 rounded-lg mb-6">
                       <div className="flex items-center gap-3">
-                       <span className="text-3xl font-bold text-cyan-600">
-                       {formatPrice(displayPrice)}
-                       </span>
-                        {displayPrice > 0 && (
+                        {isFlashSaleActive(product) ? (
                           <>
-                          
-                            <Badge className="bg-red-500">-{discountPercent}%</Badge>
+                            <span className="text-3xl font-bold text-red-600">
+                              {formatPrice(Number(product.flash_sale_price))}
+                            </span>
+                            <span className="text-lg text-gray-400 line-through">
+                              {formatPrice(Number(product.price))}
+                            </span>
+                            <Badge className="bg-red-500">Flash Sale</Badge>
+                            {/* Hiển thị số suất Flash Sale còn lại */}
+                            {(() => {
+                              const remaining = Math.max(
+                                0,
+                                (product.flash_sale_stock || 0) - (product.flash_sale_sold || 0)
+                              );
+                              return remaining > 0 ? (
+                                <span className="text-sm text-orange-600 font-medium">
+                                  🔥 Chỉ còn {remaining} suất ưu đãi
+                                </span>
+                              ) : (
+                                <span className="text-sm text-gray-500">
+                                  Đã hết suất Flash Sale
+                                </span>
+                              );
+                            })()}
+                            {/* Cảnh báo khi mua vượt suất */}
+                            {(() => {
+                              const remaining = Math.max(
+                                0,
+                                (product.flash_sale_stock || 0) - (product.flash_sale_sold || 0)
+                              );
+                              if (remaining > 0 && quantity > remaining) {
+                                return (
+                                  <span className="text-xs text-amber-600 mt-1 block">
+                                    ⚠️ {remaining} sản phẩm giá {formatPrice(Number(product.flash_sale_price))}, còn lại giá gốc {formatPrice(Number(product.price))}
+                                  </span>
+                                );
+                              }
+                              return null;
+                            })()}
+                          </>
+                        ) : (
+                          <>
+                            <span className="text-3xl font-bold text-cyan-600">
+                              {formatPrice(displayPrice)}
+                            </span>
+                            {displayPrice > 0 && (
+                              <Badge className="bg-red-500">-{discountPercent}%</Badge>
+                            )}
                           </>
                         )}
                       </div>

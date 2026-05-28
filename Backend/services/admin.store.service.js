@@ -47,37 +47,21 @@ const getDateRangeByPeriod = (period, now = new Date()) => {
 };
 
 const buildRangeLabel = (period, start, end) => {
-  if (period === "custom") {
-    return "custom";
-  }
-
-  if (period === "day") {
-    return "day";
-  }
-
-  if (period === "month") {
-    return "month";
-  }
-
-  if (period === "quarter") {
-    return "quarter";
-  }
-
+  if (period === "custom") return "custom";
+  if (period === "day") return "day";
+  if (period === "month") return "month";
+  if (period === "quarter") return "quarter";
   return "year";
 };
 
 const parseDateFromQuery = (rawDate, fieldName) => {
-  if (!rawDate) {
-    return null;
-  }
-
+  if (!rawDate) return null;
   const parsed = new Date(rawDate);
   if (Number.isNaN(parsed.getTime())) {
     const error = new Error(`${fieldName} is not a valid date`);
     error.statusCode = 400;
     throw error;
   }
-
   return parsed;
 };
 
@@ -85,45 +69,30 @@ const getDateRangeByFilter = ({ period, from, to }) => {
   if (period === "custom") {
     const start = parseDateFromQuery(from, "from");
     const end = parseDateFromQuery(to, "to");
-
     if (!start || !end) {
       const error = new Error("from and to are required when period=custom");
       error.statusCode = 400;
       throw error;
     }
-
     if (end <= start) {
       const error = new Error("to must be greater than from");
       error.statusCode = 400;
       throw error;
     }
-
-    return {
-      period: "custom",
-      start,
-      end,
-    };
+    return { period: "custom", start, end };
   }
 
   const normalizedPeriod = ["day", "month", "quarter", "year"].includes(period)
     ? period
     : "month";
   const { start, end } = getDateRangeByPeriod(normalizedPeriod);
-
-  return {
-    period: normalizedPeriod,
-    start,
-    end,
-  };
+  return { period: normalizedPeriod, start, end };
 };
 
 const computePlatformIncomeByDateRange = async ({ period, start, end }) => {
   const orders = await Order.findAll({
     where: {
-      createdAt: {
-        [Op.gte]: start,
-        [Op.lt]: end,
-      },
+      createdAt: { [Op.gte]: start, [Op.lt]: end },
     },
     attributes: ["id", "total_amount", "order_status", "payment_status"],
     include: [
@@ -158,9 +127,8 @@ const computePlatformIncomeByDateRange = async ({ period, start, end }) => {
     if (
       EXCLUDED_ORDER_STATUSES.has(orderStatus) ||
       EXCLUDED_PAYMENT_STATUSES.has(paymentStatus)
-    ) {
+    )
       continue;
-    }
 
     const orderAmount = toSafeNumber(order.total_amount);
     const fixedRate = toSafeNumber(order.store?.fixed_fee_rate);
@@ -204,16 +172,12 @@ const computePlatformIncomeByDateRange = async ({ period, start, end }) => {
   const topStores = sortedStoresByRevenueDesc.slice(0, 5);
   const bottomStores = [...sortedStoresByRevenueDesc].reverse().slice(0, 5);
   const allStores = sortedStoresByRevenueDesc;
-
   const takeRate =
     totalOrderRevenue > 0 ? totalPlatformIncome / totalOrderRevenue : 0;
 
   return {
     period: buildRangeLabel(period, start, end),
-    range: {
-      from: start.toISOString(),
-      to: end.toISOString(),
-    },
+    range: { from: start.toISOString(), to: end.toISOString() },
     orderCount,
     totalOrderRevenue,
     fixedFeeIncome,
@@ -237,10 +201,11 @@ const computePlatformIncomeByPeriod = async (period) => {
 const getPendingB2CStores = async () => {
   return storeRepository.findPendingB2CStores();
 };
-// Lấy danh sách thông báo của người dùng hiện tại
+
 const getUserNotifications = async (userId) => {
   return await notificationRepository.findAllByRecipientId(userId);
 };
+
 const updateStoreStatus = async (storeId, status, reason) => {
   if (!Object.values(STATUS).includes(status)) {
     const error = new Error(
@@ -270,14 +235,8 @@ const updateStoreStatus = async (storeId, status, reason) => {
   }
 
   store.status = status;
-
-  // Lưu lý do từ chối vào DB
-  if (status === STATUS.REJECTED) {
-    store.reject_reason = reason ? reason.trim() : null;
-  } else {
-    store.reject_reason = null; // Xóa lý do khi duyệt hoặc kích hoạt lại
-  }
-
+  store.reject_reason =
+    status === STATUS.REJECTED ? (reason ? reason.trim() : null) : null;
   await store.save();
 
   let title = "";
@@ -374,17 +333,14 @@ const getAdminDashboardStats = async () => {
   };
 };
 
-const BASE_URL = (process.env.BASE_URL || "http://localhost:5000").replace(/\/$/, "");
+const BASE_URL = (process.env.BASE_URL || "http://localhost:5000").replace(
+  /\/$/,
+  "",
+);
 
-/**
- * Tạo URL ảnh đầy đủ từ đường dẫn tương đối của multer.
- * business_license_image có dạng: "uploads/document-xxxx.jpg"
- */
 const buildLicenseImageUrl = (imagePath) => {
   if (!imagePath) return null;
-  // Nếu đã là URL đầy đủ thì giữ nguyên
   if (imagePath.startsWith("http")) return imagePath;
-  // Chuẩn hóa: bỏ dấu \ (Windows path) và đảm bảo có dấu /
   const normalized = imagePath.replace(/\\/g, "/").replace(/^\//, "");
   return `${BASE_URL}/${normalized}`;
 };
@@ -400,6 +356,7 @@ const getAdminStoresWithDetails = async () => {
       {
         model: Product,
         as: "products",
+        paranoid: false,
         attributes: ["id", "name", "price", "stock_quantity", "status"],
       },
       {
@@ -423,14 +380,14 @@ const getAdminStoresWithDetails = async () => {
       0,
     );
     const storeData = store.toJSON();
-
     return {
       ...storeData,
       totalRevenue: revenue,
       totalOrders: (store.orders || []).length,
       totalProducts: (store.products || []).length,
-      // URL ảnh GPKD đầy đủ để Frontend hiển thị
-      business_license_image_url: buildLicenseImageUrl(storeData.business_license_image),
+      business_license_image_url: buildLicenseImageUrl(
+        storeData.business_license_image,
+      ),
     };
   });
 };
@@ -446,6 +403,7 @@ const getAdminStoreDetail = async (storeId) => {
       {
         model: Product,
         as: "products",
+        paranoid: false,
         attributes: [
           "id",
           "name",
@@ -479,7 +437,6 @@ const getAdminStoreDetail = async (storeId) => {
     (sum, order) => sum + Number(order.total_amount || 0),
     0,
   );
-
   const storeData = store.toJSON();
 
   return {
@@ -487,8 +444,9 @@ const getAdminStoreDetail = async (storeId) => {
     totalRevenue: revenue,
     totalOrders: (store.orders || []).length,
     totalProducts: (store.products || []).length,
-    // URL ảnh GPKD đầy đủ để Frontend hiển thị
-    business_license_image_url: buildLicenseImageUrl(storeData.business_license_image),
+    business_license_image_url: buildLicenseImageUrl(
+      storeData.business_license_image,
+    ),
   };
 };
 
@@ -513,6 +471,12 @@ const getAdminCustomersWithDetails = async () => {
           "createdAt",
         ],
       },
+      {
+        model: Address,
+        as: "addresses",
+        where: { is_default: true },
+        required: false,
+      },
     ],
     order: [["created_at", "DESC"]],
   });
@@ -522,7 +486,6 @@ const getAdminCustomersWithDetails = async () => {
       (sum, order) => sum + Number(order.total_amount || 0),
       0,
     );
-
     return {
       ...customer.toJSON(),
       totalOrders: (customer.orders || []).length,
@@ -534,10 +497,7 @@ const getAdminCustomersWithDetails = async () => {
 
 const getAdminCustomerDetail = async (customerId) => {
   const customer = await User.findOne({
-    where: {
-      id: customerId,
-      role: "Customer",
-    },
+    where: { id: customerId, role: "Customer" },
     attributes: ["id", "username", "email", "status", "createdAt"],
     include: [
       {
@@ -587,11 +547,7 @@ const getAdminCustomerDetail = async (customerId) => {
 
 const getAdminUsersWithDetails = async () => {
   const users = await User.findAll({
-    where: {
-      role: {
-        [Op.in]: ["Customer", "Business"],
-      },
-    },
+    where: { role: { [Op.in]: ["Customer", "Business"] } },
     attributes: ["id", "username", "email", "role", "status", "createdAt"],
     include: [
       {
@@ -641,7 +597,10 @@ const getAdminUsersWithDetails = async () => {
     let address = null;
     let phone = null;
 
-    if ((user.role === "Business" || (user.stores || []).length > 1) && latestStore) {
+    if (
+      (user.role === "Business" || (user.stores || []).length > 1) &&
+      latestStore
+    ) {
       address = latestStore.address;
       phone = latestStore.contact_phone;
     } else if (user.addresses?.[0]) {
@@ -667,13 +626,15 @@ const getAdminUsersWithDetails = async () => {
   });
 };
 
+// ─── FIX CHÍNH: getAdminUserDetail ───────────────────────────────────────────
+// Vấn đề cũ: chỉ query orders (đơn mua) qua User association,
+// KHÔNG có storeOrders (đơn bán theo store_id) → frontend không hiển thị được
 const getAdminUserDetail = async (userId) => {
+  // Bước 1: Lấy thông tin user + stores + orders mua + địa chỉ
   const user = await User.findOne({
     where: {
       id: userId,
-      role: {
-        [Op.in]: ["Customer", "Business"],
-      },
+      role: { [Op.in]: ["Customer", "Business"] },
     },
     attributes: ["id", "username", "email", "role", "status", "createdAt"],
     include: [
@@ -687,9 +648,11 @@ const getAdminUserDetail = async (userId) => {
           "status",
           "description",
           "business_license",
-          "createdAt",
           "contact_phone",
+          "contact_email",
           "address",
+          "createdAt",
+          "updatedAt",
         ],
       },
       {
@@ -702,6 +665,8 @@ const getAdminUserDetail = async (userId) => {
           "payment_status",
           "createdAt",
         ],
+        order: [["createdAt", "DESC"]],
+        limit: 10,
       },
       {
         model: Address,
@@ -718,11 +683,51 @@ const getAdminUserDetail = async (userId) => {
     throw error;
   }
 
+  // Bước 2: Lấy store IDs để query storeOrders
+  const storeIds = (user.stores || []).map((s) => s.id);
+
+  // Bước 3: FIX — Query đơn hàng theo store_id (đơn bán)
+  // Đây là phần bị thiếu hoàn toàn trong code cũ
+  const storeOrders =
+    storeIds.length > 0
+      ? await Order.findAll({
+          where: { store_id: { [Op.in]: storeIds } },
+          attributes: [
+            "id",
+            "total_amount",
+            "shipping_fee",
+            "order_status",
+            "payment_status",
+            "payment_method",
+            "shipping_address",
+            "store_id",
+            "createdAt",
+          ],
+          order: [["createdAt", "DESC"]],
+          limit: 10,
+        })
+      : [];
+
+  // Bước 4: Đếm tổng đơn bán (không bị giới hạn limit)
+  const totalStoreOrdersCount =
+    storeIds.length > 0
+      ? await Order.count({ where: { store_id: { [Op.in]: storeIds } } })
+      : 0;
+
+  // Bước 5: Tính doanh thu từ storeOrders đã lấy (10 gần nhất)
+  // Dùng để hiển thị, không phải tổng chính xác
+  const totalStoreRevenue = storeOrders.reduce(
+    (sum, order) => sum + Number(order.total_amount || 0),
+    0,
+  );
+
+  // Bước 6: Tính totalSpent (đơn mua)
   const totalSpent = (user.orders || []).reduce(
     (sum, order) => sum + Number(order.total_amount || 0),
     0,
   );
 
+  // Bước 7: Metadata
   const latestStore = (user.stores || []).sort(
     (a, b) => new Date(b.createdAt) - new Date(a.createdAt),
   )[0];
@@ -730,7 +735,10 @@ const getAdminUserDetail = async (userId) => {
   let address = null;
   let phone = null;
 
-  if ((user.role === "Business" || (user.stores || []).length > 1) && latestStore) {
+  if (
+    (user.role === "Business" || (user.stores || []).length > 1) &&
+    latestStore
+  ) {
     address = latestStore.address;
     phone = latestStore.contact_phone;
   } else if (user.addresses?.[0]) {
@@ -744,8 +752,14 @@ const getAdminUserDetail = async (userId) => {
 
   return {
     ...user.toJSON(),
+    // Đơn mua (customer orders)
     totalOrders: (user.orders || []).length,
     totalSpent,
+    // Đơn bán (store orders) — FIX: có đầy đủ
+    storeOrders: storeOrders.map((o) => o.toJSON()),
+    totalStoreOrders: totalStoreOrdersCount,
+    totalStoreRevenue,
+    // Metadata
     totalStores: (user.stores || []).length,
     accountType:
       latestStore?.store_type || (user.role === "Business" ? "B2C" : "C2C"),
@@ -762,13 +776,7 @@ const getAdminPlatformIncomeSummary = async () => {
     computePlatformIncomeByPeriod("quarter"),
     computePlatformIncomeByPeriod("year"),
   ]);
-
-  return {
-    day,
-    month,
-    quarter,
-    year,
-  };
+  return { day, month, quarter, year };
 };
 
 const getAdminPlatformIncomeReport = async ({ period, from, to }) => {

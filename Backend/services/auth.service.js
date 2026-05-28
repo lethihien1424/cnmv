@@ -395,9 +395,45 @@ const register = async (payload, file = null) => {
 
 //   return { user, token };
 // };
+// const login = async ({ email, password }) => {
+//   // Thêm dấu ngoặc nhọn {} để phân tách Object từ req.body
+//   // 1. Kiểm tra đầu vào
+//   if (!email || !password) {
+//     throw {
+//       statusCode: 400,
+//       message: "Vui lòng nhập đầy đủ email và mật khẩu.",
+//     };
+//   }
+
+//   // 2. Tìm User theo email
+//   const user = await userRepository.findByEmail(email);
+//   if (!user) {
+//     throw { statusCode: 401, message: "Email hoặc mật khẩu không chính xác." };
+//   }
+
+//   // 3. So sánh mật khẩu
+//   const isMatch = await bcrypt.compare(password, user.password);
+//   if (!isMatch) {
+//     throw { statusCode: 401, message: "Email hoặc mật khẩu không chính xác." };
+//   }
+
+//   // 4. Tạo Token (Bổ sung cả id và userId để tránh lỗi ở hàm claimDailyXu và updateProfile)
+//   const token = jwt.sign(
+//     {
+//       id: user.id,
+//       userId: user.id,
+//       role: user.role,
+//     },
+//     JWT_SECRET,
+//     { expiresIn: JWT_EXPIRES_IN },
+//   );
+
+//   return { user, token };
+// };
 const login = async ({ email, password }) => {
-  // Thêm dấu ngoặc nhọn {} để phân tách Object từ req.body
-  // 1. Kiểm tra đầu vào
+  console.log("=== BẮT ĐẦU ĐĂNG NHẬP ===");
+  console.log("1. Payload nhận được:", { email, password });
+
   if (!email || !password) {
     throw {
       statusCode: 400,
@@ -405,19 +441,25 @@ const login = async ({ email, password }) => {
     };
   }
 
-  // 2. Tìm User theo email
   const user = await userRepository.findByEmail(email);
+  console.log(
+    "2. Kết quả tìm User:",
+    user
+      ? `Tìm thấy tài khoản: ${user.email}`
+      : "NULL - Không tìm thấy email này trong DB",
+  );
+
   if (!user) {
     throw { statusCode: 401, message: "Email hoặc mật khẩu không chính xác." };
   }
 
-  // 3. So sánh mật khẩu
   const isMatch = await bcrypt.compare(password, user.password);
+  console.log("3. Mật khẩu có khớp với Hash không?:", isMatch);
+
   if (!isMatch) {
     throw { statusCode: 401, message: "Email hoặc mật khẩu không chính xác." };
   }
 
-  // 4. Tạo Token (Bổ sung cả id và userId để tránh lỗi ở hàm claimDailyXu và updateProfile)
   const token = jwt.sign(
     {
       id: user.id,
@@ -428,6 +470,7 @@ const login = async ({ email, password }) => {
     { expiresIn: JWT_EXPIRES_IN },
   );
 
+  console.log("=== ĐĂNG NHẬP THÀNH CÔNG ===");
   return { user, token };
 };
 const getMe = async (userId) => {
@@ -504,15 +547,15 @@ const activateC2CStore = async (userId, payload) => {
 };
 // services/auth.service.js
 const updateStoreInfo = async (userId, payload) => {
- const {
-  store_name,
-  description,
-  contact_phone,
-  contact_email,
-  address,
-  latitude,
-  longitude,
-} = payload;
+  const {
+    store_name,
+    description,
+    contact_phone,
+    contact_email,
+    address,
+    latitude,
+    longitude,
+  } = payload;
 
   const store = await Store.findOne({ where: { owner_id: userId } });
   if (!store)
@@ -526,11 +569,9 @@ const updateStoreInfo = async (userId, payload) => {
 
   // QUAN TRỌNG: Thêm dòng này để cập nhật địa chỉ
   if (address) store.address = address;
-if (latitude !== undefined)
-  store.latitude = latitude;
+  if (latitude !== undefined) store.latitude = latitude;
 
-if (longitude !== undefined)
-  store.longitude = longitude;
+  if (longitude !== undefined) store.longitude = longitude;
   await store.save(); // Lưu xuống PostgreSQL
   return store;
 };

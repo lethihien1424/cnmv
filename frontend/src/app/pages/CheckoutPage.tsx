@@ -604,6 +604,12 @@ interface CheckoutItem {
     store_id?: string;
     is_bulky?: boolean;
     store?: { id: string; store_name: string };
+    is_flash_sale?: boolean;
+    flash_sale_price?: number | null;
+    flash_sale_stock?: number;
+    flash_sale_sold?: number;
+    flash_sale_start_time?: string | null;
+    flash_sale_end_time?: string | null;
   };
   price?: number;
 }
@@ -675,10 +681,67 @@ const CheckoutPage: React.FC = () => {
     }, {} as Record<string, { name: string; items: CheckoutItem[] }>);
   }, [items]);
 
+  // ── Flash Sale: helper lấy giá hiệu lực (có tính bậc giá) ───────────────
+  const getItemPrice = (item: CheckoutItem) => {
+    const p = item.product;
+    if (!p) return item.price || 0;
+    const now = new Date();
+    const flashActive =
+      p.is_flash_sale &&
+      p.flash_sale_price &&
+      (!p.flash_sale_start_time || new Date(p.flash_sale_start_time) <= now) &&
+      (!p.flash_sale_end_time || new Date(p.flash_sale_end_time) >= now);
+
+    if (!flashActive) return Number(p.price || item.price || 0);
+
+    // Tính bậc giá: N suất đầu giá Flash Sale, còn lại giá gốc
+    const qty = item.quantity || 1;
+    const flashPrice = Number(p.flash_sale_price);
+    const originalPrice = Number(p.price || item.price || 0);
+    const flashSaleLimit = Number(p.flash_sale_stock || 0);
+    const alreadySold = Number(p.flash_sale_sold || 0);
+    const availableSlots = Math.max(0, flashSaleLimit - alreadySold);
+    const flashQty = Math.min(qty, availableSlots);
+    const normalQty = qty - flashQty;
+
+    const total = flashQty * flashPrice + normalQty * originalPrice;
+    return qty > 0 ? total / qty : originalPrice; // trả về giá trung bình/1 sp
+  };
+
+  // Tổng tiền đã tính bậc giá Flash Sale
   const subtotal = useMemo(
-    () => items.reduce((s, i) => s + (i.product?.price || i.price || 0) * (i.quantity || 1), 0),
+    () => items.reduce((s, i) => {
+      const qty = i.quantity || 1;
+      const unitPrice = getItemPrice(i);
+      return s + unitPrice * qty;
+    }, 0),
     [items]
   );
+
+  // Cảnh báo nếu mua vượt suất Flash Sale
+  const flashSaleWarnings = useMemo(() => {
+    return items.map((item) => {
+      const p = item.product;
+      if (!p?.is_flash_sale || !p.flash_sale_price) return null;
+      const now = new Date();
+      const flashActive =
+        (!p.flash_sale_start_time || new Date(p.flash_sale_start_time) <= now) &&
+        (!p.flash_sale_end_time || new Date(p.flash_sale_end_time) >= now);
+      if (!flashActive) return null;
+      const remaining = Math.max(0, (p.flash_sale_stock || 0) - (p.flash_sale_sold || 0));
+      const qty = item.quantity || 1;
+      if (remaining > 0 && qty > remaining) {
+        return {
+          name: p.name,
+          flashQty: remaining,
+          normalQty: qty - remaining,
+          flashPrice: Number(p.flash_sale_price),
+          originalPrice: Number(p.price || 0),
+        };
+      }
+      return null;
+    }).filter(Boolean);
+  }, [items]);
   const storeCount  = Object.keys(groupedItems).filter((k) => k !== 'unknown').length || 1;
   const totalAmount = subtotal + shippingFee;
   const totalQty    = items.reduce((s, i) => s + (i.quantity || 1), 0);
@@ -1005,16 +1068,29 @@ const handlePlaceOrder = async () => {
                             </p>
                             <div style={{ display:'flex', alignItems:'center', gap:8, marginTop:8 }}>
                               <span style={{ background:'#f1f5f9', color:'#64748b', fontSize:12, fontWeight:600, padding:'2px 8px', borderRadius:6 }}>×{item.quantity}</span>
-                              <span style={{ fontSize:12, color:'#9ca3af' }}>{fmt(item.product?.price || item.price || 0)} / cái</span>
+                              <span style={{ fontSize:12, color:'#9ca3af' }}>{fmt(getItemPrice(item))} / cái</span>
                             </div>
                           </div>
                           <p style={{ fontWeight:800, fontSize:15, color:'#ef4444', margin:0, flexShrink:0 }}>
-                            {fmt((item.product?.price || item.price || 0) * item.quantity)}
+                            {fmt(getItemPrice(item) * item.quantity)}
                           </p>
                         </div>
                       ))}
                     </div>
                   ))}
+                  {/* Cảnh báo mua vượt suất Flash Sale */}
+                  {flashSaleWarnings.length > 0 && (
+                    <div style={{ padding: '12px 24px', background: '#fff7ed', borderTop: '1px solid #fed7aa' }}>
+                      {flashSaleWarnings.map((w: any, idx: number) => (
+                        <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: '#9a3412' }}>
+                          <span>⚠️</span>
+                          <span>
+                            <b>{w.name}</b>: {w.flashQty} sản phẩm giá {fmt(w.flashPrice)}, {w.normalQty} sản phẩm giá gốc {fmt(w.originalPrice)}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               </div>
 

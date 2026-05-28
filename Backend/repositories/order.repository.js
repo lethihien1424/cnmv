@@ -1,4 +1,3 @@
-
 // repositories/order.repository.js
 const { Op } = require("sequelize");
 const {
@@ -42,7 +41,7 @@ const getOrdersByUser = async (userId) => {
       {
         model: OrderDetail,
         as: "items",
-        include: [{ model: Product, as: "product" }],
+        include: [{ model: Product, as: "product", paranoid: false }],
       },
     ],
     order: [["created_at", "DESC"]],
@@ -59,7 +58,7 @@ const getOrdersByStore = async (storeId) => {
       {
         model: OrderDetail,
         as: "items",
-        include: [{ model: Product, as: "product" }],
+        include: [{ model: Product, as: "product", paranoid: false }],
       },
     ],
     order: [["created_at", "DESC"]],
@@ -75,7 +74,7 @@ const getOrderById = async (id) => {
       {
         model: OrderDetail,
         as: "items",
-        include: [{ model: Product, as: "product" }],
+        include: [{ model: Product, as: "product", paranoid: false }],
       },
     ],
   });
@@ -92,21 +91,18 @@ const updateOrderStatus = async (orderId, status) => {
   if (!order) throw new Error("Order not found");
 
   const allowedFlow = {
-  PENDING: ["PICKUP", "CANCELLED", "REFUNDED"],
-  PICKUP: ["SHIPPING", "CANCELLED", "REFUNDED"],
-  SHIPPING: ["DELIVERED"],
-};
+    PENDING: ["PICKUP", "CANCELLED", "REFUNDED"],
+    PICKUP: ["SHIPPING", "CANCELLED", "REFUNDED"],
+    SHIPPING: ["DELIVERED"],
+  };
 
-const current = order.order_status;
+  const current = order.order_status;
 
-if (
-  allowedFlow[current] &&
-  !allowedFlow[current].includes(status)
-) {
-  throw new Error("Không thể chuyển trạng thái");
-}
+  if (allowedFlow[current] && !allowedFlow[current].includes(status)) {
+    throw new Error("Không thể chuyển trạng thái");
+  }
 
-order.order_status = status;
+  order.order_status = status;
 
   // COD: tự động PAID khi DELIVERED
   if (
@@ -188,10 +184,7 @@ const deleteOrder = async (orderId) => {
     throw new Error("Không tìm thấy đơn hàng");
   }
 
-  if (
-    order.order_status !== "PENDING" &&
-    order.order_status !== "PICKUP"
-  ) {
+  if (order.order_status !== "PENDING" && order.order_status !== "PICKUP") {
     throw new Error("Chỉ được xóa đơn ở trạng thái PENDING hoặc PICKUP");
   }
 

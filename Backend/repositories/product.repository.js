@@ -21,7 +21,7 @@ const createProduct = async (payload) => {
 };
 
 const findProductById = async (id) => {
-  return Product.findByPk(id);
+  return Product.findByPk(id, { paranoid: false });
 };
 
 const findProductsByIdsForUpdate = async (ids, transaction) => {
@@ -48,8 +48,16 @@ const searchProducts = async ({
   storeType,
   limit,
   offset,
+  includeDiscontinued = false,
 }) => {
   const where = {};
+
+  // Chỉ hiển thị sản phẩm AVAILABLE cho khách hàng (mặc định)
+  // Khi includeDiscontinued=true (seller dashboard), hiển thị tất cả
+  if (!includeDiscontinued) {
+    where.status = "AVAILABLE";
+    where.deleted_at = null;
+  }
 
   if (keyword) {
     where[Op.or] = [
@@ -104,11 +112,13 @@ const searchProducts = async ({
     offset,
     order: [["created_at", "DESC"]],
     distinct: true,
+    paranoid: false, // Vẫn dùng paranoid:false để query đúng, nhưng where clause đã lọc
   });
 };
 
 const findProductDetailById = async (id) => {
   return Product.findByPk(id, {
+    paranoid: false, // Bao gồm cả sản phẩm đã soft-delete
     include: [
       {
         model: Store,
