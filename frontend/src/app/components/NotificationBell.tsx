@@ -1,5 +1,5 @@
-import React from 'react';
-import { useNavigate } from 'react-router';
+﻿import React from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Bell, ChevronRight } from 'lucide-react';
 import { Button } from './ui/button';
 import { apiRequest } from '../services/api';

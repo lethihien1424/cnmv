@@ -1,5 +1,5 @@
-import React, { useEffect, useMemo, useState } from 'react';
-import { useNavigate, useParams } from 'react-router';
+﻿import React, { useEffect, useMemo, useState } from 'react';
+import { useNavigate, useParams } from 'react-router-dom';
 import { Button } from '../components/ui/button';
 import { Card, CardContent } from '../components/ui/card';
 import { ImageWithFallback } from '../components/figma/ImageWithFallback';
@@ -151,7 +151,7 @@ transition-all duration-200 ease-in-out">
   );
 }
 // import React, { useEffect, useMemo, useState } from 'react';
-// import { useNavigate, useParams } from 'react-router';
+// import { useNavigate, useParams } from 'react-router-dom';
 // import { Button } from '../components/ui/button';
 // import { Badge } from '../components/ui/badge';
 // import { Card, CardContent } from '../components/ui/card';

@@ -1,6 +1,6 @@
-// // D:\CNM_new2\CongNgheMoi\frontend\src\app\pages\StoreOrdersPage.tsx
+﻿// // D:\CNM_new2\CongNgheMoi\frontend\src\app\pages\StoreOrdersPage.tsx
 // import React, { useEffect, useMemo, useState } from 'react';
-// import { useNavigate } from 'react-router';
+// import { useNavigate } from 'react-router-dom';
 // import { useAuth } from '../contexts/AuthContext';
 
 // import {
@@ -395,7 +395,7 @@
 // }
 // frontend/src/app/pages/StoreOrdersPage.tsx
 import React, { useEffect, useMemo, useState } from 'react';
-import { useNavigate } from 'react-router';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { orderAPI, type Order } from '../services/orderService';
 import { Card, CardContent } from '../components/ui/card';

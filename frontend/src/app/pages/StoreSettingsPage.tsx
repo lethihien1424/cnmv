@@ -213,7 +213,7 @@ const autoLocateAddress = (
       try {
 
         const res = await fetch(
-          `http://localhost:5000/api/geocode/search?query=${encodeURIComponent(fullAddress)}`
+          `/api/geocode/search?query=${encodeURIComponent(fullAddress)}`
         );
 
         const json =
@@ -245,7 +245,7 @@ const autoLocateAddress = (
     const fetchStore = async () => {
       try {
         const token = localStorage.getItem('token');
-        const res = await axios.get('http://localhost:5000/api/stores/my-store', {
+        const res = await axios.get('/api/stores/my-store', {
           headers: { Authorization: `Bearer ${token}` },
         });
         const s = res.data.data;

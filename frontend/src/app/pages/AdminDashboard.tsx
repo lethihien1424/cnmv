@@ -1,11 +1,11 @@
-// //D:\CongNgheMoi_new\CongNgheMoi\frontend\src\app\pages\AdminDashboard.tsx
+﻿// //D:\CongNgheMoi_new\CongNgheMoi\frontend\src\app\pages\AdminDashboard.tsx
 // import React from 'react';
 // import { useAuth } from '../contexts/AuthContext';
 // import { Button } from '../components/ui/button';
 // import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
 // import { Badge } from '../components/ui/badge';
 // import { Shield, Users, Store, Package, LogOut, TrendingUp, FolderOpen, BarChart3 } from 'lucide-react';
-// import { useNavigate } from 'react-router';
+// import { useNavigate } from 'react-router-dom';
 // import StoreManagementPage from './StoreManagementPage';
 // import CategoryManagement from '../components/CategoryManagement';
 // import {
@@ -687,7 +687,7 @@ import { Button } from '../components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
 import { Badge } from '../components/ui/badge';
 import { Shield, Users, Store, Package, LogOut, TrendingUp, FolderOpen, BarChart3 } from 'lucide-react';
-import { useNavigate } from 'react-router';
+import { useNavigate } from 'react-router-dom';
 import StoreManagementPage from './StoreManagementPage';
 import CategoryManagement from '../components/CategoryManagement';
 import {

@@ -232,7 +232,7 @@ const updateMapByAddress = async (
       .join(", ");
 
     const res = await fetch(
-  `http://localhost:5000/api/geocode/search?query=${encodeURIComponent(query)}`
+  `/api/geocode/search?query=${encodeURIComponent(query)}`
 );
 
 const json = await res.json();
@@ -373,7 +373,7 @@ const autoLocateAddress = async (
   `${detail}, ${ward}, ${district}, ${province}, Vietnam`;
 
    const res = await fetch(
-  `http://localhost:5000/api/geocode/search?query=${encodeURIComponent(q)}`
+  `/api/geocode/search?query=${encodeURIComponent(q)}`
 );
 
 const json = await res.json();

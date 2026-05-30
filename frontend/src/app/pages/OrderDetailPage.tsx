@@ -1,6 +1,6 @@
-// frontend/src/app/pages/OrderDetailPage.tsx
+﻿// frontend/src/app/pages/OrderDetailPage.tsx
 import React, { useCallback, useEffect, useState } from 'react';
-import { useNavigate, useParams } from 'react-router';
+import { useNavigate, useParams } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import StoreHeader from '../components/StoreHeader';
 import StoreFooter from '../components/StoreFooter';

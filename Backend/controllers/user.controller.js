@@ -44,52 +44,49 @@ const deleteUser = async (req, res) => {
     res.status(400).json({ message: err.message });
   }
 };
-const getProfile = async (
-  req,
-  res
-) => {
-
+const getProfile = async (req, res) => {
   try {
-
-    const user =
-      await userService.getProfile(
-        req.user.id
+    // 1. Kiểm tra xem Middleware có truyền req.user sang không
+    if (!req.user || !req.user.id) {
+      console.log(
+        "🔴 LỖI BACKEND: Không tìm thấy req.user. Chưa gắn Middleware xác thực!",
       );
+      return res
+        .status(401)
+        .json({ message: "Không tìm thấy token xác thực hợp lệ" });
+    }
 
-    res.json({
-      data: user,
-    });
-
+    const user = await userService.getProfile(req.user.id);
+    res.json({ data: user });
   } catch (err) {
-
-    res.status(400).json({
-      message: err.message,
-    });
+    // 2. In lỗi thật ra Terminal của Backend để debug
+    console.error("🔴 LỖI GET PROFILE:", err);
+    res.status(400).json({ message: err.message });
   }
 };
-const updateProfile = async (
-  req,
-  res
-) => {
 
+const updateProfile = async (req, res) => {
   try {
-
-    const user =
-      await userService.updateProfile(
-        req.user.id,
-        req.body
+    if (!req.user || !req.user.id) {
+      console.log(
+        "🔴 LỖI BACKEND: Không tìm thấy req.user. Chưa gắn Middleware xác thực!",
       );
+      return res
+        .status(401)
+        .json({ message: "Không tìm thấy token xác thực hợp lệ" });
+    }
 
-    res.json({
-      message: "Cập nhật thành công",
-      data: user,
-    });
+    // Nếu có file avatar được upload, thêm đường dẫn vào data
+    const profileData = { ...req.body };
+    if (req.file) {
+      profileData.avatar = `/uploads/${req.file.filename}`;
+    }
 
+    const user = await userService.updateProfile(req.user.id, profileData);
+    res.json({ message: "Cập nhật thành công", data: user });
   } catch (err) {
-
-    res.status(400).json({
-      message: err.message,
-    });
+    console.error("🔴 LỖI UPDATE PROFILE:", err);
+    res.status(400).json({ message: err.message });
   }
 };
 module.exports = {

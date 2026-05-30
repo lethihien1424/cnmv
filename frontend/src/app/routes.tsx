@@ -1,5 +1,5 @@
-//frontend/src/app/routes.tsx
-import { createBrowserRouter } from 'react-router';
+﻿//frontend/src/app/routes.tsx
+import { createBrowserRouter } from 'react-router-dom';
 
 import LoginPage from './pages/LoginPage';
 import RegisterCustomerPage from './pages/RegisterCustomerPage';

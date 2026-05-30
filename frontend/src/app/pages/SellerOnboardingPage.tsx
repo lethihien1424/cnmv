@@ -1,173 +1,70 @@
+﻿
 import React, { useState, useRef } from 'react';
-import { useNavigate } from 'react-router';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { Button } from '../components/ui/button';
 import { Card, CardContent } from '../components/ui/card';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { Separator } from '../components/ui/separator';
-import { GoogleMap, LoadScript, Marker, Autocomplete } from '@react-google-maps/api';
-import axios from 'axios'; // Import axios để gọi API
+import axios from 'axios';
 import {
   ChevronLeft,
   ChevronRight,
   Check,
-  MapPin,
   Upload,
   AlertCircle,
   Store,
   Truck,
   FileText,
-  CreditCard,
-  Image as ImageIcon
+  CreditCard
 } from 'lucide-react';
 
+// 🌟 Import AddressSelector để dùng chung dữ liệu địa chỉ
+import AddressSelector from '../components/AddressSelector';
+
 type OnboardingStep = 'shop-info' | 'shipping' | 'identity' | 'tax';
-
-type AdministrativeItem = {
-  code: number;
-  name: string;
-};
-
-const VN_ADMIN_API = 'https://provinces.open-api.vn/api';
-
-const defaultCenter = {
-  lat: 10.8231,
-  lng: 106.6297
-};
-
-const libraries: ("places")[] = ["places"];
 
 export default function SellerOnboardingPage() {
   const navigate = useNavigate();
   const { user, token, updateUser } = useAuth();
   const [currentStep, setCurrentStep] = useState<OnboardingStep>('shop-info');
-  const [showAddressModal, setShowAddressModal] = useState(false);
   const [showEmailModal, setShowEmailModal] = useState(false);
-  const [showLocationModal, setShowLocationModal] = useState(false);
-  const [isLoading, setIsLoading] = useState(false); // State loading khi gọi API
+  const [isLoading, setIsLoading] = useState(false); 
   const [policyAccepted, setPolicyAccepted] = useState(false);
   const [servicePackage, setServicePackage] = useState('0');
   const [bankAccount, setBankAccount] = useState('');
 
   // Form states
   const [shopName, setShopName] = useState('');
-  const [pickupAddress, setPickupAddress] = useState('');
   const [email, setEmail] = useState('');
-  const [phone, setPhone] = useState('');
   const [shippingMethod, setShippingMethod] = useState<'processing' | 'active'>('processing');
-  const [isDefaultAddress, setIsDefaultAddress] = useState(false);
-  const [isPickupAddress, setIsPickupAddress] = useState(true);
+
+  // 🌟 States quản lý Địa chỉ lấy hàng qua AddressSelector
+  const [selectedAddressId, setSelectedAddressId] = useState<string | null>(null);
+  const [selectedAddress, setSelectedAddress] = useState<any>(null);
 
   // States cho Identity
   const [cccdNumber, setCccdNumber] = useState('');
   const [fullNameIdentity, setFullNameIdentity] = useState('');
   
-  // States Upload ẢNH (Lưu URL xem trước VÀ lưu File thực tế để gửi API)
+  // States Upload ẢNH 
   const [frontIdImage, setFrontIdImage] = useState<string | null>(null);
   const [backIdImage, setBackIdImage] = useState<string | null>(null);
-  const [frontIdFile, setFrontIdFile] = useState<File | null>(null); // MỚI THÊM
-  const [backIdFile, setBackIdFile] = useState<File | null>(null);   // MỚI THÊM
+  const [frontIdFile, setFrontIdFile] = useState<File | null>(null); 
+  const [backIdFile, setBackIdFile] = useState<File | null>(null);   
   
   const frontIdRef = useRef<HTMLInputElement>(null);
   const backIdRef = useRef<HTMLInputElement>(null);
 
   // LỖI (Error States)
   const [emailError, setEmailError] = useState('');
-  const [phoneError, setPhoneError] = useState('');
   const [cccdError, setCccdError] = useState('');
   const [shopNameError, setShopNameError] = useState('');
   const [idImageError, setIdImageError] = useState(''); 
   const [identityVerifyError, setIdentityVerifyError] = useState('');
   const [identityVerifySuccess, setIdentityVerifySuccess] = useState('');
   const [isIdentityVerifying, setIsIdentityVerifying] = useState(false);
-
-  // States cho Map & Autocomplete
-  const [mapCenter, setMapCenter] = useState(defaultCenter);
-  const [markerPosition, setMarkerPosition] = useState(defaultCenter);
-  const [autocomplete, setAutocomplete] = useState<google.maps.places.Autocomplete | null>(null);
-
-  // Address form
-  const [fullName, setFullName] = useState('');
-  const [phoneNumber, setPhoneNumber] = useState('');
-  const [province, setProvince] = useState('');
-  const [district, setDistrict] = useState('');
-  const [ward, setWard] = useState('');
-  const [street, setStreet] = useState('');
-  const [provinceCode, setProvinceCode] = useState('');
-  const [districtCode, setDistrictCode] = useState('');
-  const [wardCode, setWardCode] = useState('');
-  const [provinces, setProvinces] = useState<AdministrativeItem[]>([]);
-  const [districts, setDistricts] = useState<AdministrativeItem[]>([]);
-  const [wards, setWards] = useState<AdministrativeItem[]>([]);
-  const [isLocationLoading, setIsLocationLoading] = useState(false);
-  const [locationError, setLocationError] = useState('');
-
-  React.useEffect(() => {
-    const loadProvinces = async () => {
-      setIsLocationLoading(true);
-      setLocationError('');
-      try {
-        const res = await fetch(`${VN_ADMIN_API}/p/`);
-        if (!res.ok) throw new Error('Không thể tải danh sách Tỉnh/Thành phố');
-        const data: AdministrativeItem[] = await res.json();
-        setProvinces(data.sort((a, b) => a.name.localeCompare(b.name, 'vi')));
-      } catch (_error) {
-        setLocationError('Không tải được dữ liệu khu vực. Vui lòng thử lại.');
-      } finally {
-        setIsLocationLoading(false);
-      }
-    };
-    loadProvinces();
-  }, []);
-
-  const handleProvinceChange = async (nextProvinceCode: string) => {
-    setProvinceCode(nextProvinceCode);
-    setDistrictCode(''); setWardCode(''); setDistrict(''); setWard(''); setDistricts([]); setWards([]);
-    const selectedProvince = provinces.find((item) => String(item.code) === nextProvinceCode);
-    setProvince(selectedProvince?.name || '');
-    if (!nextProvinceCode) return;
-
-    setIsLocationLoading(true);
-    setLocationError('');
-    try {
-      const res = await fetch(`${VN_ADMIN_API}/p/${nextProvinceCode}?depth=2`);
-      if (!res.ok) throw new Error('Không thể tải danh sách Quận/Huyện');
-      const data = await res.json();
-      setDistricts((data?.districts || []).sort((a: AdministrativeItem, b: AdministrativeItem) => a.name.localeCompare(b.name, 'vi')));
-    } catch (_error) {
-      setLocationError('Không tải được Quận/Huyện. Vui lòng chọn lại.');
-    } finally {
-      setIsLocationLoading(false);
-    }
-  };
-
-  const handleDistrictChange = async (nextDistrictCode: string) => {
-    setDistrictCode(nextDistrictCode);
-    setWardCode(''); setWard(''); setWards([]);
-    const selectedDistrict = districts.find((item) => String(item.code) === nextDistrictCode);
-    setDistrict(selectedDistrict?.name || '');
-    if (!nextDistrictCode) return;
-
-    setIsLocationLoading(true);
-    setLocationError('');
-    try {
-      const res = await fetch(`${VN_ADMIN_API}/d/${nextDistrictCode}?depth=2`);
-      if (!res.ok) throw new Error('Không thể tải danh sách Phường/Xã');
-      const data = await res.json();
-      setWards((data?.wards || []).sort((a: AdministrativeItem, b: AdministrativeItem) => a.name.localeCompare(b.name, 'vi')));
-    } catch (_error) {
-      setLocationError('Không tải được Phường/Xã. Vui lòng chọn lại.');
-    } finally {
-      setIsLocationLoading(false);
-    }
-  };
-
-  const handleWardChange = (nextWardCode: string) => {
-    setWardCode(nextWardCode);
-    const selectedWard = wards.find((item) => String(item.code) === nextWardCode);
-    setWard(selectedWard?.name || '');
-  };
 
   const steps = [
     { id: 'shop-info', label: 'Thông tin Shop', icon: Store },
@@ -178,11 +75,27 @@ export default function SellerOnboardingPage() {
 
   const currentStepIndex = steps.findIndex((step) => step.id === currentStep);
 
+  // 🌟 Hàm bắt sự kiện khi chọn địa chỉ từ AddressSelector
+  const handleSelectAddress = (id: string, addrObj?: any) => {
+    setSelectedAddressId(id);
+    if (addrObj) {
+      setSelectedAddress(addrObj);
+    } else {
+      // Gọi API lấy lại detail nếu component chỉ trả ra ID
+      axios.get('http://localhost:5000/api/addresses', { headers: { Authorization: `Bearer ${token}` } })
+        .then(res => {
+          const list = res.data.data || res.data;
+          const a = list.find((x: any) => x.id === id);
+          if (a) setSelectedAddress(a);
+        }).catch(err => console.error(err));
+    }
+  };
+
   const handleFrontIdUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      setFrontIdFile(file); // Lưu file thật để gọi API
-      setFrontIdImage(URL.createObjectURL(file)); // Lưu URL để xem trước
+      setFrontIdFile(file); 
+      setFrontIdImage(URL.createObjectURL(file)); 
       setIdImageError(''); 
       setIdentityVerifyError('');
       setIdentityVerifySuccess('');
@@ -192,8 +105,8 @@ export default function SellerOnboardingPage() {
   const handleBackIdUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      setBackIdFile(file); // Lưu file thật để gọi API
-      setBackIdImage(URL.createObjectURL(file)); // Lưu URL để xem trước
+      setBackIdFile(file); 
+      setBackIdImage(URL.createObjectURL(file)); 
       setIdImageError(''); 
       setIdentityVerifyError('');
       setIdentityVerifySuccess('');
@@ -204,68 +117,49 @@ export default function SellerOnboardingPage() {
     if (currentStep === 'shop-info') {
       if (!shopName.trim()) { setShopNameError('Vui lòng nhập tên Shop'); return; }
       setShopNameError('');
-      if (!pickupAddress) { alert('Vui lòng thiết lập địa chỉ lấy hàng!'); return; }
+      if (!selectedAddressId) { alert('Vui lòng thiết lập địa chỉ lấy hàng!'); return; }
       if (!email) { alert('Vui lòng thiết lập Email!'); return; }
-      if (!phone) { alert('Vui lòng thiết lập Số điện thoại!'); return; }
+      if (!selectedAddress?.phone) { alert('Vui lòng chọn địa chỉ có số điện thoại hợp lệ!'); return; }
 
       setEmailError('');
-      setPhoneError('');
       setShopNameError('');
 
       try {
         const payload = {
           email: email.trim(),
-          phone: phone.trim(),
+          phone: selectedAddress.phone.trim(),
           store_name: shopName.trim(),
         };
 
-        const headers = {
-          Authorization: `Bearer ${token}`,
-        };
+        const headers = { Authorization: `Bearer ${token}` };
 
         try {
-          await axios.post(
-            'http://localhost:5000/api/stores/check-c2c-availability',
-            payload,
-            { headers },
-          );
+          await axios.post('http://localhost:5000/api/stores/check-c2c-availability', payload, { headers });
         } catch (primaryError: any) {
           if (primaryError?.response?.status === 404) {
-            await axios.post(
-              'http://localhost:5000/api/admin/check-c2c-availability',
-              payload,
-              { headers },
-            );
+            await axios.post('http://localhost:5000/api/admin/check-c2c-availability', payload, { headers });
           } else {
             throw primaryError;
           }
         }
       } catch (error: any) {
         const duplicateMessages = error.response?.data?.data?.duplicateMessages;
-
         if (duplicateMessages) {
           let hasDuplicate = false;
-
           if (duplicateMessages.email) {
             setEmailError(duplicateMessages.email);
             setShowEmailModal(true);
             hasDuplicate = true;
           }
-
           if (duplicateMessages.phone) {
-            setPhoneError(duplicateMessages.phone);
-            setShowAddressModal(true);
+            alert(duplicateMessages.phone + " (Vui lòng chọn địa chỉ/SĐT khác)");
             hasDuplicate = true;
           }
-
           if (duplicateMessages.storeName) {
             setShopNameError(duplicateMessages.storeName);
             hasDuplicate = true;
           }
-
-          if (hasDuplicate) {
-            return;
-          }
+          if (hasDuplicate) return;
         }
 
         const message = error.response?.data?.message || 'Không thể kiểm tra dữ liệu trùng. Vui lòng thử lại.';
@@ -273,8 +167,7 @@ export default function SellerOnboardingPage() {
           setEmailError(message);
           setShowEmailModal(true);
         } else if (message.toLowerCase().includes('điện thoại') || message.toLowerCase().includes('phone')) {
-          setPhoneError(message);
-          setShowAddressModal(true);
+          alert(message);
         } else if (message.toLowerCase().includes('shop')) {
           setShopNameError(message);
         } else {
@@ -317,11 +210,7 @@ export default function SellerOnboardingPage() {
         await axios.post(
           'http://localhost:5000/api/stores/verify-c2c-identity',
           verifyFormData,
-          {
-            headers: {
-              Authorization: `Bearer ${token}`,
-            },
-          },
+          { headers: { Authorization: `Bearer ${token}` } }
         );
 
         setIdentityVerifySuccess('CCCD hợp lệ và khớp thông tin. Bạn có thể tiếp tục.');
@@ -347,7 +236,6 @@ export default function SellerOnboardingPage() {
     }
   };
 
-  // --- HÀM GỌI API LƯU STORE VÀ CHUYỂN HƯỚNG ---
   const handleSubmitFinal = async () => {
     if (!policyAccepted) {
       alert('Bạn cần đồng ý điều khoản phí và vận hành trước khi đăng ký bán hàng.');
@@ -366,11 +254,13 @@ export default function SellerOnboardingPage() {
 
     setIsLoading(true);
     try {
+      const fullPickupAddress = selectedAddress ? `${selectedAddress.detail}, ${selectedAddress.ward}, ${selectedAddress.district}, ${selectedAddress.province}` : '';
+
       const formData = new FormData();
       formData.append('store_name', shopName);
-      formData.append('description', `Địa chỉ lấy hàng: ${pickupAddress}`);
+      formData.append('description', `Địa chỉ lấy hàng: ${fullPickupAddress}`);
       formData.append('contact_email', email.trim());
-      formData.append('contact_phone', phone.trim());
+      formData.append('contact_phone', selectedAddress.phone.trim());
       formData.append('identity_card', cccdNumber);
       formData.append('representative_name', fullNameIdentity.trim());
       formData.append('bank_account', bankAccount || '');
@@ -382,16 +272,11 @@ export default function SellerOnboardingPage() {
       const response = await axios.post(
         'http://localhost:5000/api/stores/activate-c2c',
         formData,
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        },
+        { headers: { Authorization: `Bearer ${token}` } }
       );
 
       const createdStore = response.data?.data;
 
-      // Lưu trạng thái kích hoạt shop để giao diện đổi từ "Kích hoạt Shop C2C" sang "Quản lý Shop"
       if (user?.role === 'customer') {
         updateUser({
           hasC2CStore: true,
@@ -401,8 +286,6 @@ export default function SellerOnboardingPage() {
       }
 
       alert('Tạo Shop thành công!');
-      
-      // CHUYỂN HƯỚNG SANG TRANG QUẢN LÝ SHOP
       navigate('/seller/dashboard'); 
       
     } catch (error: any) {
@@ -420,44 +303,6 @@ export default function SellerOnboardingPage() {
     }
     setEmailError('');
     setShowEmailModal(false);
-  };
-
-  const handleSaveAddress = () => {
-    const phoneRegex = /^0\d{9}$/; 
-    if (!phoneRegex.test(phoneNumber)) {
-      setPhoneError('Số điện thoại phải gồm 10 chữ số và bắt đầu bằng số 0');
-      return;
-    }
-    setPhoneError('');
-    
-    const fullAddress = [street, ward, district, province].filter(Boolean).join(', ');
-    setPickupAddress(fullAddress || 'Địa chỉ lấy hàng chưa đầy đủ');
-    setPhone(phoneNumber); 
-    setShowAddressModal(false);
-  };
-
-  const onMapClick = (e: google.maps.MapMouseEvent) => {
-    if (e.latLng) {
-      setMarkerPosition({ lat: e.latLng.lat(), lng: e.latLng.lng() });
-    }
-  };
-
-  const onLoadAutocomplete = (autocompleteObj: google.maps.places.Autocomplete) => {
-    setAutocomplete(autocompleteObj);
-  };
-
-  const onPlaceChanged = () => {
-    if (autocomplete !== null) {
-      const place = autocomplete.getPlace();
-      if (place.geometry && place.geometry.location) {
-        const newPos = { lat: place.geometry.location.lat(), lng: place.geometry.location.lng() };
-        setMapCenter(newPos);
-        setMarkerPosition(newPos);
-        if (place.name) {
-          setStreet(place.name + (place.formatted_address ? `, ${place.formatted_address}` : ''));
-        }
-      }
-    }
   };
 
   return (
@@ -522,15 +367,18 @@ export default function SellerOnboardingPage() {
 
               <Separator />
 
+              {/* 🌟 VỊ TRÍ NHÚNG COMPONENT CHỌN ĐỊA CHỈ AddressSelector 🌟 */}
               <div>
-                <Label htmlFor="pickup-address">Địa chỉ lấy hàng <span className="text-red-500">*</span></Label>
-                <button
-                  onClick={() => setShowAddressModal(true)}
-                  className="w-full mt-2 px-4 py-3 border-2 border-gray-200 rounded-lg text-left hover:border-gray-300 transition-all flex items-center justify-between"
-                >
-                  <span className={pickupAddress ? 'text-gray-900' : 'text-gray-400'}>{pickupAddress || 'Thiết lập địa chỉ'}</span>
-                  <ChevronRight className="size-5 text-gray-400" />
-                </button>
+                <Label>Địa chỉ lấy hàng <span className="text-red-500">*</span></Label>
+                <div className="mt-3">
+                  <AddressSelector 
+                    selectedId={selectedAddressId} 
+                    onSelect={handleSelectAddress} 
+                  />
+                  {!selectedAddressId && (
+                    <p className="text-sm text-gray-500 mt-2 italic">Vui lòng chọn địa chỉ để làm địa chỉ lấy hàng.</p>
+                  )}
+                </div>
               </div>
 
               <Separator />
@@ -548,10 +396,13 @@ export default function SellerOnboardingPage() {
 
               <Separator />
 
+              {/* Ô số điện thoại Tự Động hiển thị từ Địa chỉ bạn vừa chọn */}
               <div>
-                <Label htmlFor="phone">Số điện thoại <span className="text-red-500">*</span></Label>
+                <Label>Số điện thoại <span className="text-red-500">*</span></Label>
                 <button className="w-full mt-2 px-4 py-3 border-2 border-gray-200 rounded-lg text-left hover:border-gray-300 transition-all flex items-center justify-between cursor-default">
-                  <span className={phone ? 'text-gray-900' : 'text-gray-400'}>{phone || 'Sẽ thiết lập kèm Địa chỉ'}</span>
+                  <span className={selectedAddress?.phone ? 'text-gray-900 font-medium' : 'text-gray-400'}>
+                    {selectedAddress?.phone || 'Sẽ thiết lập kèm Địa chỉ lấy hàng'}
+                  </span>
                 </button>
               </div>
             </CardContent>
@@ -798,80 +649,6 @@ export default function SellerOnboardingPage() {
         </div>
       </div>
 
-      {/* Address Modal */}
-      {showAddressModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-black/50" onClick={() => setShowAddressModal(false)} />
-          <div className="relative bg-white rounded-lg shadow-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
-            <div className="sticky top-0 bg-white border-b px-6 py-4 flex items-center justify-between z-10">
-              <button onClick={() => setShowAddressModal(false)} className="text-gray-600 hover:text-gray-900"><ChevronLeft className="size-6" /></button>
-              <h2 className="text-lg">Địa chỉ lấy hàng</h2>
-              <div className="w-6" />
-            </div>
-
-            <LoadScript googleMapsApiKey="AIzaSyCz2FBTMfYNxhQ0v00ZYePs1b9gNGB1DD8" libraries={libraries}>
-              <div className="p-6 space-y-6">
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <Label htmlFor="fullname-addr">Họ và tên</Label>
-                    <Input id="fullname-addr" value={fullName} onChange={(e) => setFullName(e.target.value)} placeholder="Nguyễn Văn A" className="mt-2" />
-                  </div>
-                  <div>
-                    <Label htmlFor="phone-addr">Số điện thoại <span className="text-red-500">*</span></Label>
-                    <Input 
-                      id="phone-addr" 
-                      value={phoneNumber} 
-                      onChange={(e) => setPhoneNumber(e.target.value.replace(/[^0-9]/g, ''))} 
-                      placeholder="0912345678" 
-                      className={`mt-2 ${phoneError ? 'border-red-500' : ''}`}
-                      maxLength={10} 
-                    />
-                    {phoneError && <p className="text-sm text-red-500 mt-1">{phoneError}</p>}
-                  </div>
-                </div>
-
-                <div>
-                  <Label>Tỉnh/Thành phố, Quận/Huyện, Phường/Xã</Label>
-                  <button type="button" onClick={() => setShowLocationModal(true)} className="w-full mt-2 px-4 py-3 border-2 border-gray-200 rounded-lg text-left hover:border-gray-300 transition-all flex items-center justify-between">
-                    <span className="text-gray-900">{province && district && ward ? `${province}, ${district}, ${ward}` : 'Chọn khu vực...'}</span>
-                    <ChevronRight className="size-5 text-gray-400" />
-                  </button>
-                </div>
-
-                <div>
-                  <Label htmlFor="street-addr">Tên đường, Tòa nhà, Số nhà (Gợi ý tự động)</Label>
-                  <Autocomplete 
-                    onLoad={onLoadAutocomplete} 
-                    onPlaceChanged={onPlaceChanged}
-                    options={{ componentRestrictions: { country: 'vn' } }} 
-                  >
-                    <Input 
-                      id="street-addr" 
-                      value={street} 
-                      onChange={(e) => setStreet(e.target.value)} 
-                      placeholder="Nhập tên tòa nhà hoặc đường để tìm kiếm..." 
-                      className="mt-2 border-blue-300 focus:border-blue-500 focus:ring-blue-500" 
-                    />
-                  </Autocomplete>
-                </div>
-
-                <div className="relative h-48 bg-gray-100 rounded-lg overflow-hidden border border-gray-300">
-                  <GoogleMap mapContainerStyle={{ width: '100%', height: '100%' }} center={mapCenter} zoom={16} onClick={onMapClick}>
-                    <Marker position={markerPosition} draggable={true} onDragEnd={onMapClick} />
-                  </GoogleMap>
-                </div>
-
-                <div className="pt-4">
-                  <Button type="button" onClick={handleSaveAddress} className="w-full h-12 bg-red-500 hover:bg-red-600">
-                    LƯU VÀ XÁC NHẬN ĐỊA CHỈ
-                  </Button>
-                </div>
-              </div>
-            </LoadScript>
-          </div>
-        </div>
-      )}
-
       {/* Email Modal */}
       {showEmailModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
@@ -903,45 +680,7 @@ export default function SellerOnboardingPage() {
           </div>
         </div>
       )}
-
-      {/* Location Modal */}
-      {showLocationModal && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-black/50" onClick={() => setShowLocationModal(false)} />
-          <div className="relative bg-white rounded-lg shadow-xl w-full max-w-md">
-            <div className="sticky top-0 bg-white border-b px-6 py-4 flex items-center justify-between">
-              <button type="button" onClick={() => setShowLocationModal(false)} className="text-gray-600 hover:text-gray-900"><ChevronLeft className="size-6" /></button>
-              <h2 className="text-lg">Chọn khu vực</h2><div className="w-6" />
-            </div>
-            <div className="p-6 space-y-4">
-              <div>
-                <Label htmlFor="province-input">Tỉnh/Thành phố</Label>
-                <select id="province-input" value={provinceCode} onChange={(e) => handleProvinceChange(e.target.value)} className="mt-2 h-10 w-full rounded-md border border-input bg-background px-3">
-                  <option value="">Chọn Tỉnh/Thành phố</option>
-                  {provinces.map((item) => (<option key={item.code} value={item.code}>{item.name}</option>))}
-                </select>
-              </div>
-              <div>
-                <Label htmlFor="district-input">Quận/Huyện</Label>
-                <select id="district-input" value={districtCode} onChange={(e) => void handleDistrictChange(e.target.value)} disabled={!province} className="mt-2 h-10 w-full rounded-md border border-input bg-background px-3 disabled:opacity-60">
-                  <option value="">Chọn Quận/Huyện</option>
-                  {districts.map((item) => (<option key={item.code} value={item.code}>{item.name}</option>))}
-                </select>
-              </div>
-              <div>
-                <Label htmlFor="ward-input">Phường/Xã</Label>
-                <select id="ward-input" value={wardCode} onChange={(e) => handleWardChange(e.target.value)} disabled={!district} className="mt-2 h-10 w-full rounded-md border border-input bg-background px-3 disabled:opacity-60">
-                  <option value="">Chọn Phường/Xã</option>
-                  {wards.map((item) => (<option key={item.code} value={item.code}>{item.name}</option>))}
-                </select>
-              </div>
-              <div className="pt-2">
-                <Button type="button" onClick={() => setShowLocationModal(false)} className="w-full h-12 bg-red-500 hover:bg-red-600">XÁC NHẬN KHU VỰC</Button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
+

@@ -1,6 +1,6 @@
-//D:\CongNgheMoi-hien\CongNgheMoi\frontend\src\app\components\CartDrawer.tsx
+﻿//D:\CongNgheMoi-hien\CongNgheMoi\frontend\src\app\components\CartDrawer.tsx
 import React, { useCallback, useEffect, useState } from "react";
-import { useNavigate } from "react-router";
+import { useNavigate } from "react-router-dom";
 import { cartAPI, type CartDetail } from "../services/cartService";
 import { API_BASE_URL } from "../services/api";
 

@@ -1,7 +1,7 @@
-//frontend/src/app/pages/CustomerProfilePage.tsx
+﻿//frontend/src/app/pages/CustomerProfilePage.tsx
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
-import { Link, useNavigate } from 'react-router';
+import { Link, useNavigate } from 'react-router-dom';
 import { Button } from '../components/ui/button';
 import { Card, CardContent } from '../components/ui/card';
 import { Badge } from '../components/ui/badge';
@@ -17,7 +17,7 @@ import {
   ChevronRight, Settings,
 } from 'lucide-react';
 
-const API_URL = 'http://localhost:5000/api';
+const API_URL = '/api';
 
 type DailyXuStatus = {
   xuBalance: number;

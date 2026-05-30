@@ -21,19 +21,25 @@ const findByEmail = async (email) => {
 };
 
 const setResetOtp = async (userId, otp, expiresAt) =>
-  User.update({ resetOtp: otp, resetOtpExpires: expiresAt }, { where: { id: userId } });
+  User.update(
+    { resetOtp: otp, resetOtpExpires: expiresAt },
+    { where: { id: userId } },
+  );
 
 const updatePasswordAndClearOtp = async (userId, hashedPassword) =>
   User.update(
     { password: hashedPassword, resetOtp: null, resetOtpExpires: null },
-    { where: { id: userId } }
+    { where: { id: userId } },
   );
 
 const updatePasswordOnly = async (userId, hashedPassword) =>
   User.update({ password: hashedPassword }, { where: { id: userId } });
 
 const findAllUsers = async () =>
-  User.findAll({ attributes: { exclude: ["password"] }, order: [["created_at", "DESC"]] });
+  User.findAll({
+    attributes: { exclude: ["password"] },
+    order: [["created_at", "DESC"]],
+  });
 
 const findUserById = async (id) => User.findByPk(id);
 
@@ -51,7 +57,17 @@ const deleteUser = async (id) => {
 
 const getProfile = async (userId) =>
   User.findByPk(userId, {
-    attributes: ["id", "username", "email", "role", "status", "gender", "date_of_birth"],
+    attributes: [
+      "id",
+      "username",
+      "email",
+      "role",
+      "status",
+      "gender",
+      "date_of_birth",
+      "avatar",
+      "phone",
+    ],
     include: [{ model: Address, as: "addresses", required: false }],
   });
 
@@ -59,41 +75,66 @@ const updateProfile = async (userId, data) => {
   const user = await User.findByPk(userId);
   if (!user) throw new Error("Không tìm thấy user");
 
-  // 1. Cập nhật bảng users
+  // 1. Cập nhật bảng users (Bao gồm cả Email, Giới tính, Ngày sinh, Phone)
   await user.update({
-    username:      data.username      ?? user.username,
-    gender:        data.gender        ?? user.gender,
+    username: data.username ?? user.username,
+    email: data.email ?? user.email,
+    gender: data.gender ?? user.gender,
     date_of_birth: data.date_of_birth ?? user.date_of_birth,
+    phone: data.phone ?? user.phone,
   });
 
-  // 2. Cập nhật phone của địa chỉ đang chọn
-  if (data.phone !== undefined && data.phone !== null) {
+  // 2. Xử lý lưu Số điện thoại vào bảng Address
+  if (
+    data.phone !== undefined &&
+    data.phone !== null &&
+    String(data.phone).trim() !== ""
+  ) {
     let address = null;
 
+    // Ưu tiên tìm địa chỉ đang được chọn trên giao diện
     if (data.address_id) {
-      // Cập nhật đúng địa chỉ khách đang chọn
       address = await Address.findOne({
         where: { id: data.address_id, user_id: userId },
       });
     }
 
+    // Nếu không có, tìm địa chỉ mặc định
     if (!address) {
-      // Fallback: lấy địa chỉ mặc định
       address = await Address.findOne({
         where: { user_id: userId, is_default: true },
       });
     }
 
+    // Nếu đã có địa chỉ -> Cập nhật số điện thoại
     if (address) {
       await address.update({ phone: data.phone });
     }
-    // Nếu không có địa chỉ nào thì bỏ qua — phone sẽ được lưu khi khách thêm địa chỉ mới
+    // NẾU CHƯA CÓ ĐỊA CHỈ -> Tạo một địa chỉ mặc định để lưu số điện thoại
+    else {
+      await Address.create({
+        user_id: userId,
+        phone: data.phone,
+        is_default: true,
+        recipient_name: data.username || user.username,
+      });
+    }
   }
 
+  // Trả về dữ liệu mới nhất
   return getProfile(userId);
 };
 
 module.exports = {
-  createUser, findByEmail, setResetOtp, updatePasswordAndClearOtp, updatePasswordOnly,
-  findAllUsers, findUserById, updateUser, deleteUser, getProfile, updateProfile,
+  createUser,
+  findByEmail,
+  setResetOtp,
+  updatePasswordAndClearOtp,
+  updatePasswordOnly,
+  findAllUsers,
+  findUserById,
+  updateUser,
+  deleteUser,
+  getProfile,
+  updateProfile,
 };

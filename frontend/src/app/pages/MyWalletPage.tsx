@@ -1,6 +1,6 @@
-// frontend/src/app/pages/MyWalletPage.tsx
+﻿// frontend/src/app/pages/MyWalletPage.tsx
 import React, { useCallback, useEffect, useState } from 'react';
-import { useNavigate } from 'react-router';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import StoreHeader from '../components/StoreHeader';
 import StoreFooter from '../components/StoreFooter';

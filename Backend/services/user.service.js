@@ -71,9 +71,7 @@ const deleteUser = async (id) => {
   return await userRepo.deleteUser(id);
 };
 const getProfile = async (userId) => {
-
-  const user =
-    await userRepo.getProfile(userId);
+  const user = await userRepo.getProfile(userId);
 
   if (!user) {
     throw new Error("Không tìm thấy user");
@@ -81,15 +79,25 @@ const getProfile = async (userId) => {
 
   return user;
 };
-const updateProfile = async (
-  userId,
-  data
-) => {
+const updateProfile = async (userId, data) => {
+  // 1. Nếu có cập nhật email, kiểm tra định dạng
+  if (
+    data.email &&
+    !/^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/.test(data.email)
+  ) {
+    throw new Error("Định dạng email không hợp lệ");
+  }
 
-  return await userRepo.updateProfile(
-    userId,
-    data
-  );
+  // 2. Kiểm tra xem email mới này có bị trùng với tài khoản khác không
+  if (data.email) {
+    const existingUser = await userRepo.findByEmail(data.email);
+    if (existingUser && String(existingUser.id) !== String(userId)) {
+      throw new Error("Email này đã được sử dụng bởi một tài khoản khác!");
+    }
+  }
+
+  // 3. Nếu dữ liệu an toàn, gọi xuống Repository để lưu
+  return await userRepo.updateProfile(userId, data);
 };
 module.exports = {
   createUser,

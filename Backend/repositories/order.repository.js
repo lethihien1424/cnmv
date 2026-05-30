@@ -212,6 +212,126 @@ const getWalletByUser = async (userId) => {
   return { wallet, transactions };
 };
 
+// ─── getOrdersByUserFiltered (lọc theo tháng/năm/trạng thái, giới hạn kết quả) ──
+const getOrdersByUserFiltered = async (
+  userId,
+  { month, year, status, limit = 5 } = {},
+) => {
+  const whereClause = { buyer_id: userId };
+
+  // Lọc theo tháng/năm
+  if (month && year) {
+    const startDate = new Date(year, month - 1, 1);
+    const endDate = new Date(year, month, 0, 23, 59, 59, 999);
+    whereClause.created_at = { [Op.between]: [startDate, endDate] };
+  } else if (year) {
+    const startDate = new Date(year, 0, 1);
+    const endDate = new Date(year, 11, 31, 23, 59, 59, 999);
+    whereClause.created_at = { [Op.between]: [startDate, endDate] };
+  }
+
+  // Lọc theo trạng thái
+  if (status) {
+    whereClause.order_status = status.toUpperCase();
+  }
+
+  const orders = await Order.findAll({
+    where: whereClause,
+    include: [
+      {
+        model: OrderDetail,
+        as: "items",
+        include: [{ model: Product, as: "product", paranoid: false }],
+      },
+    ],
+    order: [["created_at", "DESC"]],
+    limit,
+  });
+
+  return await attachReviewStatus(orders);
+};
+
+// ─── getPurchaseSummaryByUser (thống kê tổng quát — rất nhanh, không load chi tiết) ──
+const getPurchaseSummaryByUser = async (userId) => {
+  const totalOrders = await Order.count({ where: { buyer_id: userId } });
+
+  const completedOrders = await Order.findAll({
+    where: { buyer_id: userId, order_status: "DELIVERED" },
+    attributes: [
+      [
+        Order.sequelize.fn("SUM", Order.sequelize.col("total_amount")),
+        "totalSpent",
+      ],
+      [
+        Order.sequelize.fn("COUNT", Order.sequelize.col("id")),
+        "totalCompleted",
+      ],
+    ],
+    raw: true,
+  });
+
+  const statusCounts = await Order.findAll({
+    where: { buyer_id: userId },
+    attributes: [
+      "order_status",
+      [Order.sequelize.fn("COUNT", Order.sequelize.col("id")), "count"],
+    ],
+    group: ["order_status"],
+    raw: true,
+  });
+
+  // Tìm sản phẩm được mua nhiều nhất
+  const topProduct = await OrderDetail.findAll({
+    include: [
+      {
+        model: Order,
+        as: "order",
+        where: { buyer_id: userId },
+        attributes: [],
+      },
+      {
+        model: Product,
+        as: "product",
+        attributes: ["name"],
+        paranoid: false,
+      },
+    ],
+    attributes: [
+      "product_id",
+      [
+        OrderDetail.sequelize.fn(
+          "COUNT",
+          OrderDetail.sequelize.col("order_detail.product_id"),
+        ),
+        "buyCount",
+      ],
+    ],
+    group: ["product_id", "product.name"],
+    order: [
+      [
+        OrderDetail.sequelize.fn(
+          "COUNT",
+          OrderDetail.sequelize.col("order_detail.product_id"),
+        ),
+        "DESC",
+      ],
+    ],
+    limit: 1,
+    raw: true,
+  });
+
+  return {
+    totalOrders,
+    totalSpent: Number(completedOrders[0]?.totalSpent || 0),
+    totalCompleted: Number(completedOrders[0]?.totalCompleted || 0),
+    statusBreakdown: statusCounts.reduce((acc, s) => {
+      acc[s.order_status] = Number(s.count);
+      return acc;
+    }, {}),
+    mostPurchasedProduct: topProduct[0]?.["product.name"] || null,
+  };
+};
+
 module.exports = {
   createOrder,
   createOrderItem,
@@ -223,4 +343,6 @@ module.exports = {
   cancelOrder,
   deleteOrder,
   getWalletByUser,
+  getOrdersByUserFiltered,
+  getPurchaseSummaryByUser,
 };

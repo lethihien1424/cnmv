@@ -1,5 +1,5 @@
 // frontend/src/app/services/api.ts
-const DEFAULT_API_BASE_URL = 'http://localhost:5000';
+const DEFAULT_API_BASE_URL = '';
 
 const rawApiBaseUrl =
   typeof import.meta !== 'undefined' && (import.meta as ImportMeta & { env?: { VITE_API_URL?: string } }).env?.VITE_API_URL

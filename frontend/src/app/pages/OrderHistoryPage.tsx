@@ -1,6 +1,6 @@
-// D:\CongNgheMoi-hien\CongNgheMoi\frontend\src\app\pages\OrderHistoryPage.tsx
+﻿// D:\CongNgheMoi-hien\CongNgheMoi\frontend\src\app\pages\OrderHistoryPage.tsx
 import React, { useCallback, useEffect, useState } from 'react';
-import { useNavigate } from 'react-router';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import StoreHeader from '../components/StoreHeader';
 import StoreFooter from '../components/StoreFooter';

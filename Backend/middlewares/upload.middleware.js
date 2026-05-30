@@ -49,4 +49,7 @@ const uploadStoreDocuments = [
   },
 ];
 
-module.exports = { uploadProductImages, uploadStoreDocuments };
+// Middleware xử lý avatar người dùng (1 file duy nhất)
+const uploadAvatar = upload.single("avatar_file");
+
+module.exports = { uploadProductImages, uploadStoreDocuments, uploadAvatar };

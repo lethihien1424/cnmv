@@ -1,6 +1,6 @@
-//D:\CNM_new2\CongNgheMoi\frontend\src\app\pages\ProductDetailPage.tsx
+﻿//D:\CNM_new2\CongNgheMoi\frontend\src\app\pages\ProductDetailPage.tsx
 import React, { useEffect, useMemo, useState } from 'react';
-import { Link, useNavigate, useParams } from 'react-router';
+import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { Button } from '../components/ui/button';
 import { Card, CardContent } from '../components/ui/card';
@@ -218,7 +218,7 @@ useEffect(() => {
         return url;
       }
       // Đảm bảo map đúng port 5000 Backend của bạn
-      return `http://localhost:5000${url.startsWith('/') ? '' : '/'}${url}`;
+      return `${url.startsWith('/') ? '' : '/'}${url}`;
     };
 
     // Chuẩn hóa ảnh sản phẩm chính

@@ -3,7 +3,7 @@ import axios from 'axios';
 import { getMyStoreStatus } from '../services/storeStatusService';
 import { toast } from 'sonner';
 
-const API_URL = 'http://localhost:5000/api';
+const API_URL = '/api';
 
 export type UserRole = 'admin' | 'business' | 'customer';
 
@@ -164,6 +164,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     localStorage.removeItem('token');
     localStorage.removeItem('user');
     delete axios.defaults.headers.common['Authorization'];
+
+    // 🌟 Clear chat state & close chat widget on logout
+    window.dispatchEvent(new CustomEvent('clear-chat'));
   };
 
   const registerCustomer = async (username: string, email: string, password: string) => {

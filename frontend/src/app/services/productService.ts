@@ -177,7 +177,7 @@ export async function getProductDetail(id: string): Promise<Product> {
 // Dòng 214-219: Đây là code FRONTEND bị dán nhầm vào Backend!
 export const createProduct = async (formData: FormData, token: string) => {
   // Thay thế đường dẫn bằng URL tuyệt đối để loại trừ lỗi Proxy
-  const response = await axios.post(`http://localhost:5000/api/products`, formData, {
+  const response = await axios.post(`/api/products`, formData, {
     headers: {
       'Authorization': `Bearer ${token}`, // Đảm bảo token không phải "Bearer undefined"
     },
@@ -186,7 +186,7 @@ export const createProduct = async (formData: FormData, token: string) => {
 };
 
 export const updateProduct = async (id: string, formData: FormData, token: string) => {
-  const response = await axios.put(`http://localhost:5000/api/products/${id}`, formData, {
+  const response = await axios.put(`/api/products/${id}`, formData, {
     headers: {
       'Authorization': `Bearer ${token}`,
     },

@@ -1,5 +1,6 @@
 //D:\CNM_cu\CongNgheMoi\Backend\controllers\product.controller.js
 const productService = require("../services/product.service");
+const vectorService = require("../services/vector.service");
 
 // Trong controller.js
 const createProduct = async (req, res) => {
@@ -26,6 +27,14 @@ const createProduct = async (req, res) => {
       req.user,
       req.imageUrls,
     );
+
+    // Real-time sync: đẩy sản phẩm mới lên Qdrant (fire-and-forget)
+    vectorService
+      .upsertSingleProduct(result)
+      .catch((err) =>
+        console.error("[Vector DB] Lỗi upsert sau createProduct:", err.message),
+      );
+
     res.status(201).json(result);
   } catch (err) {
     res.status(400).json({ error: err.message });
@@ -65,6 +74,14 @@ const updateProduct = async (req, res) => {
       req.user,
       req.imageUrls || [],
     );
+
+    // Real-time sync: cập nhật vector sản phẩm trên Qdrant (fire-and-forget)
+    vectorService
+      .upsertSingleProduct(result)
+      .catch((err) =>
+        console.error("[Vector DB] Lỗi upsert sau updateProduct:", err.message),
+      );
+
     res.status(200).json(result);
   } catch (error) {
     console.error("LỖI:", error);
@@ -74,6 +91,17 @@ const updateProduct = async (req, res) => {
 const deleteProduct = async (req, res) => {
   try {
     await productService.deleteProduct(req.params.id, req.user);
+
+    // Real-time sync: xóa vector sản phẩm khỏi Qdrant (fire-and-forget)
+    vectorService
+      .deleteProductVector(req.params.id)
+      .catch((err) =>
+        console.error(
+          "[Vector DB] Lỗi xóa vector sau deleteProduct:",
+          err.message,
+        ),
+      );
+
     return res.status(200).json({
       message: "Delete product success",
     });

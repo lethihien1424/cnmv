@@ -21,7 +21,7 @@ import axios from 'axios';
 import { Store as StoreIcon, Check, X, Clock, Ban, Building2, FileText, Loader2, Eye, Zap, Bot, ScanLine, AlertTriangle, CheckCircle2, XCircle, ZoomIn } from 'lucide-react';
 import { format } from 'date-fns';
 
-const API_URL = 'http://localhost:5000/api'; // Hãy đảm bảo URL này đúng với Backend của bạn
+const API_URL = '/api';
 
 export default function StoreManagementPage() {
   const { user, token } = useAuth();

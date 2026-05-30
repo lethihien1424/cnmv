@@ -1,5 +1,5 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { useNavigate } from 'react-router';
+﻿import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { io, type Socket } from 'socket.io-client';
 import { useAuth } from '../contexts/AuthContext';
 import { Button } from '../components/ui/button';

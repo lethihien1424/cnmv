@@ -7,7 +7,7 @@ uploads/
 # Log files
 *.log
 npm-debug.log*
-
+.env
 # OS
 .DS_Store
 Thumbs.db

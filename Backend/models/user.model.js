@@ -57,6 +57,22 @@ module.exports = (sequelize) => {
         type: DataTypes.DATE,
         allowNull: true,
       },
+      avatar: {
+        type: DataTypes.STRING(500),
+        allowNull: true,
+      },
+      gender: {
+        type: DataTypes.STRING(20),
+        allowNull: true,
+      },
+      date_of_birth: {
+        type: DataTypes.DATEONLY,
+        allowNull: true,
+      },
+      phone: {
+        type: DataTypes.STRING,
+        allowNull: true,
+      },
     },
     {
       tableName: "users",

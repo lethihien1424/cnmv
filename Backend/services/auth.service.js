@@ -186,6 +186,8 @@
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const fs = require("fs");
+const nodemailer = require("nodemailer");
+const crypto = require("crypto");
 const { User, Store } = require("../models");
 const userRepository = require("../repositories/user.repository");
 const storeRepository = require("../repositories/store.repository");
@@ -575,6 +577,104 @@ const updateStoreInfo = async (userId, payload) => {
   await store.save(); // Lưu xuống PostgreSQL
   return store;
 };
+/**
+ * Gửi OTP đặt lại mật khẩu qua email
+ */
+const forgotPassword = async ({ email }) => {
+  if (!email) {
+    throw { statusCode: 400, message: "Vui lòng nhập email." };
+  }
+
+  const user = await User.findOne({ where: { email } });
+  // Không tiết lộ email có tồn tại hay không (bảo mật)
+  if (!user) {
+    return { success: true, message: "Nếu email tồn tại, OTP đã được gửi." };
+  }
+
+  // Tạo OTP 6 chữ số
+  const otp = crypto.randomInt(100000, 999999).toString();
+  const otpExpires = new Date(Date.now() + 10 * 60 * 1000); // Hết hạn sau 10 phút
+
+  // Lưu OTP vào DB
+  user.resetOtp = otp;
+  user.resetOtpExpires = otpExpires;
+  await user.save();
+
+  // Gửi email qua nodemailer
+  const transporter = nodemailer.createTransport({
+    host: process.env.MAIL_HOST || "smtp.gmail.com",
+    port: Number(process.env.MAIL_PORT) || 587,
+    secure: process.env.MAIL_SECURE === "true",
+    auth: {
+      user: process.env.MAIL_USER,
+      pass: process.env.MAIL_PASS,
+    },
+  });
+
+  await transporter.sendMail({
+    from: `"${process.env.MAIL_FROM || "ShopHub"}" <${process.env.MAIL_USER}>`,
+    to: email,
+    subject: "Mã OTP đặt lại mật khẩu - ShopHub",
+    html: `
+      <div style="font-family: Arial, sans-serif; max-width: 500px; margin: auto; padding: 20px; border: 1px solid #e0e0e0; border-radius: 8px;">
+        <h2 style="color: #333;">🔐 Đặt lại mật khẩu</h2>
+        <p>Bạn đã yêu cầu đặt lại mật khẩu. Dùng mã OTP bên dưới:</p>
+        <div style="text-align: center; margin: 20px 0;">
+          <span style="font-size: 32px; font-weight: bold; color: #e74c3c; letter-spacing: 8px; padding: 10px 20px; background: #fdf2f2; border-radius: 8px;">${otp}</span>
+        </div>
+        <p style="color: #888; font-size: 13px;">Mã có hiệu lực trong <strong>10 phút</strong>. Nếu bạn không yêu cầu, vui lòng bỏ qua email này.</p>
+      </div>
+    `,
+  });
+
+  console.log(`[Auth] OTP sent to ${email}`);
+  return { success: true, message: "Nếu email tồn tại, OTP đã được gửi." };
+};
+
+/**
+ * Đặt lại mật khẩu bằng OTP
+ */
+const resetPassword = async ({ email, otp, newPassword }) => {
+  if (!email || !otp || !newPassword) {
+    throw {
+      statusCode: 400,
+      message: "Vui lòng nhập đầy đủ email, OTP và mật khẩu mới.",
+    };
+  }
+
+  if (newPassword.length < 6) {
+    throw { statusCode: 400, message: "Mật khẩu mới phải có ít nhất 6 ký tự." };
+  }
+
+  const user = await User.findOne({ where: { email } });
+  if (!user || !user.resetOtp || !user.resetOtpExpires) {
+    throw { statusCode: 400, message: "Mã OTP không hợp lệ hoặc đã hết hạn." };
+  }
+
+  // Kiểm tra OTP khớp
+  if (user.resetOtp !== otp) {
+    throw { statusCode: 400, message: "Mã OTP không chính xác." };
+  }
+
+  // Kiểm tra hết hạn
+  if (new Date() > new Date(user.resetOtpExpires)) {
+    throw {
+      statusCode: 400,
+      message: "Mã OTP đã hết hạn. Vui lòng yêu cầu lại.",
+    };
+  }
+
+  // Hash mật khẩu mới và lưu
+  const hashedPassword = await bcrypt.hash(newPassword, 10);
+  user.password = hashedPassword;
+  user.resetOtp = null;
+  user.resetOtpExpires = null;
+  await user.save();
+
+  console.log(`[Auth] Password reset success for ${email}`);
+  return { success: true, message: "Đổi mật khẩu thành công." };
+};
+
 // CẬP NHẬT PHẦN NÀY Ở CUỐI FILE:
 module.exports = {
   register,
@@ -583,5 +683,7 @@ module.exports = {
   getDailyXuStatus,
   claimDailyXu,
   activateC2CStore,
-  updateStoreInfo, // <--- Thêm dòng này vào đây
+  updateStoreInfo,
+  forgotPassword,
+  resetPassword,
 };
