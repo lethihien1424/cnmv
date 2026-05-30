@@ -18,6 +18,8 @@ const createWalletTransactionModel = require("./walletTransaction.model");
 const createVoucherModel = require("./voucher.model");
 const createShopVoucherModel = require("./shopVoucher.model");
 const createUserVoucherModel = require("./userVoucher.model");
+// ── PASSWORD HISTORY MODEL ──
+const createPasswordHistoryModel = require("./passwordHistory.model");
 
 const dbName = (process.env.DB_NAME || "cnmoi").trim().replace(/\.sql$/i, "");
 
@@ -58,6 +60,7 @@ const WalletTransaction = createWalletTransactionModel(sequelize);
 const Voucher = createVoucherModel(sequelize);
 const ShopVoucher = createShopVoucherModel(sequelize);
 const UserVoucher = createUserVoucherModel(sequelize);
+const PasswordHistory = createPasswordHistoryModel(sequelize);
 
 User.hasMany(Store, { foreignKey: "owner_id", as: "stores" });
 Store.belongsTo(User, { foreignKey: "owner_id", as: "owner" });
@@ -101,7 +104,10 @@ Review.belongsTo(Order, { foreignKey: "order_id", as: "order" });
 // ── THÊM ASSOCIATIONS CHO WALLET ──
 User.hasOne(Wallet, { foreignKey: "user_id", as: "wallet" });
 Wallet.belongsTo(User, { foreignKey: "user_id", as: "user" });
-Wallet.hasMany(WalletTransaction, { foreignKey: "wallet_id", as: "transactions" });
+Wallet.hasMany(WalletTransaction, {
+  foreignKey: "wallet_id",
+  as: "transactions",
+});
 WalletTransaction.belongsTo(Wallet, { foreignKey: "wallet_id", as: "wallet" });
 
 // ── ASSOCIATIONS CHO VOUCHER ──
@@ -111,6 +117,13 @@ Voucher.hasMany(UserVoucher, { foreignKey: "voucher_id", as: "userVouchers" });
 UserVoucher.belongsTo(Voucher, { foreignKey: "voucher_id", as: "voucher" });
 Store.hasMany(ShopVoucher, { foreignKey: "store_id", as: "shopVouchers" });
 ShopVoucher.belongsTo(Store, { foreignKey: "store_id", as: "store" });
+
+// ── ASSOCIATIONS CHO PASSWORD HISTORY ──
+User.hasMany(PasswordHistory, {
+  foreignKey: "user_id",
+  as: "passwordHistories",
+});
+PasswordHistory.belongsTo(User, { foreignKey: "user_id", as: "user" });
 
 module.exports = {
   sequelize,
@@ -132,4 +145,6 @@ module.exports = {
   Voucher,
   ShopVoucher,
   UserVoucher,
+  // ── PASSWORD HISTORY ──
+  PasswordHistory,
 };

@@ -232,33 +232,19 @@ const updateMapByAddress = async (
       .join(", ");
 
     const res = await fetch(
-  `/api/geocode/search?query=${encodeURIComponent(query)}`
-);
+      `/api/geocode/search?query=${encodeURIComponent(query)}`
+    );
 
-const json = await res.json();
+    // Read the response body ONLY ONCE
+    const json = await res.json();
 
-if (json.success) {
+    if (json.success && json.data) {
+      const lat = Number(json.data.lat);
+      const lng = Number(json.data.lng);
 
-  const lat = Number(json.data.lat);
-  const lng = Number(json.data.lng);
-
-  setAutoLocation({
-    lat,
-    lng,
-  });
-}
-
-    const data = await res.json();
-
-    if (data?.length) {
-
-      const lat = Number(data[0].lat);
-      const lng = Number(data[0].lon);
-
-      setAutoLocation({
-        lat,
-        lng,
-      });
+      if (!isNaN(lat) && !isNaN(lng)) {
+        setAutoLocation({ lat, lng });
+      }
     }
 
   } catch (err) {

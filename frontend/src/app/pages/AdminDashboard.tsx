@@ -691,7 +691,7 @@ import { Badge } from '../components/ui/badge';
 // import { useNavigate } from 'react-router-dom';
 
 import { Shield, Users, Store, Package, LogOut, TrendingUp, FolderOpen, BarChart3, Ticket  } from 'lucide-react';
-import { useNavigate } from 'react-router';
+import { useNavigate } from 'react-router-dom';
 
 import StoreManagementPage from './StoreManagementPage';
 import CategoryManagement from '../components/CategoryManagement';

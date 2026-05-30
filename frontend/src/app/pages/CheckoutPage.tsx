@@ -4,7 +4,7 @@
 // import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import { useLocation, useNavigate, useSearchParams } from 'react-router';
+import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 
 import AddressSelector from '../components/AddressSelector';
 import StoreHeader from '../components/StoreHeader';
@@ -341,6 +341,7 @@ const CheckoutPage: React.FC = () => {
     setLoadingFee(true);
     try {
       const firstStoreId = Object.keys(groupedItems).find((k) => k !== 'unknown') ?? null;
+      if (!firstStoreId) { setShippingOptions(null); setShippingFee(0); return; }
       const hasBulky = items.some((i) => i.product?.is_bulky === true);
       const res = await apiRequest<ShippingOptions>('/shipping/calculate', { method: 'POST', body: JSON.stringify({ address_id: address.id, store_id: firstStoreId, is_bulky: hasBulky }) } );
       if (!res.success) { setShippingError(res.standard?.name || 'Không tính được phí vận chuyển'); setShippingOptions(null); setShippingFee(0); return; }

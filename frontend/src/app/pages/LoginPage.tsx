@@ -9,7 +9,17 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { toast } from "sonner"; // Hoặc thư viện thông báo bạn đang dùng
 import { forgotPassword, resetPassword } from "../services/api";
 import { useAuth } from "../contexts/AuthContext";
-import { Lock, LogIn, Mail } from "lucide-react";
+import { Lock, LogIn, Mail, CheckCircle, XCircle } from "lucide-react";
+
+const PASSWORD_REGEX = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&#])[A-Za-z\d@$!%*?&#]{8,}$/;
+
+const passwordRules = [
+  { label: "Ít nhất 8 ký tự", test: (pw: string) => pw.length >= 8 },
+  { label: "Có chữ hoa (A-Z)", test: (pw: string) => /[A-Z]/.test(pw) },
+  { label: "Có chữ thường (a-z)", test: (pw: string) => /[a-z]/.test(pw) },
+  { label: "Có số (0-9)", test: (pw: string) => /\d/.test(pw) },
+  { label: "Có ký tự đặc biệt (@$!%*?&#)", test: (pw: string) => /[@$!%*?&#]/.test(pw) },
+];
 
 export default function LoginPage() {
   const navigate = useNavigate();
@@ -155,6 +165,9 @@ export const ForgotPasswordModal: React.FC<ForgotPasswordModalProps> = ({ isOpen
 
   // Bước 2 & 3: Xác nhận đổi mật khẩu
   const handleResetPassword = async () => {
+    if (!PASSWORD_REGEX.test(newPassword)) {
+      return toast.error("Mật khẩu phải có ít nhất 8 ký tự, bao gồm chữ hoa, chữ thường, số và ký tự đặc biệt.");
+    }
     if (newPassword !== confirmPassword) {
       return toast.error("Mật khẩu xác nhận không khớp!");
     }
@@ -187,12 +200,12 @@ export const ForgotPasswordModal: React.FC<ForgotPasswordModalProps> = ({ isOpen
           <div className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="email">Nhập Email của bạn</Label>
-              <Input 
-                id="email" 
-                type="email" 
-                placeholder="example@gmail.com" 
-                value={email} 
-                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setEmail(e.target.value)} 
+              <Input
+                id="email"
+                type="email"
+                placeholder="example@gmail.com"
+                value={email}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setEmail(e.target.value)}
               />
             </div>
             <Button className="w-full" onClick={handleSendOtp} disabled={loading}>
@@ -221,23 +234,44 @@ export const ForgotPasswordModal: React.FC<ForgotPasswordModalProps> = ({ isOpen
           <div className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="new-password">Mật khẩu mới</Label>
-              <Input 
-                id="new-password" 
-                type="password" 
-                value={newPassword} 
-                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setNewPassword(e.target.value)} 
+              <Input
+                id="new-password"
+                type="password"
+                value={newPassword}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setNewPassword(e.target.value)}
               />
-              {/* ĐÃ SỬA LỖI Ở DÒNG BÊN DƯỚI */}
-              <p className="text-xs text-gray-500">{"Mật khẩu phải có chữ hoa, thường, số, ký tự đặc biệt & >= 8 ký tự."}</p>
+              {/* Real-time password strength indicators */}
+              {newPassword.length > 0 && (
+                <div className="mt-2 space-y-1">
+                  {passwordRules.map((rule) => {
+                    const passed = rule.test(newPassword);
+                    return (
+                      <div key={rule.label} className="flex items-center gap-2 text-xs">
+                        {passed ? (
+                          <CheckCircle className="size-3.5 text-emerald-500 shrink-0" />
+                        ) : (
+                          <XCircle className="size-3.5 text-red-400 shrink-0" />
+                        )}
+                        <span className={passed ? "text-emerald-600" : "text-red-500"}>
+                          {rule.label}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
             <div className="space-y-2">
               <Label htmlFor="confirm-password">Xác nhận mật khẩu mới</Label>
-              <Input 
-                id="confirm-password" 
-                type="password" 
-                value={confirmPassword} 
-                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setConfirmPassword(e.target.value)} 
+              <Input
+                id="confirm-password"
+                type="password"
+                value={confirmPassword}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setConfirmPassword(e.target.value)}
               />
+              {confirmPassword && newPassword !== confirmPassword && (
+                <p className="text-xs text-red-500 mt-1">Mật khẩu xác nhận không khớp</p>
+              )}
             </div>
             <Button className="w-full" onClick={handleResetPassword} disabled={loading}>
               {loading ? "Đang xử lý..." : "Cập nhật mật khẩu"}

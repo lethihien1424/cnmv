@@ -188,7 +188,7 @@ const jwt = require("jsonwebtoken");
 const fs = require("fs");
 const nodemailer = require("nodemailer");
 const crypto = require("crypto");
-const { User, Store } = require("../models");
+const { User, Store, PasswordHistory } = require("../models");
 const userRepository = require("../repositories/user.repository");
 const storeRepository = require("../repositories/store.repository");
 const aiService = require("./ai.service");
@@ -201,6 +201,56 @@ const ROLE = {
 
 const JWT_SECRET = process.env.JWT_SECRET || "dev_secret";
 const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || "1d";
+
+// ── PASSWORD COMPLEXITY ──
+// Ít nhất 8 ký tự, có 1 chữ hoa, 1 chữ thường, 1 số và 1 ký tự đặc biệt
+const PASSWORD_REGEX =
+  /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&#])[A-Za-z\d@$!%*?&#]{8,}$/;
+const PASSWORD_HISTORY_LIMIT = 3;
+
+/**
+ * Kiểm tra độ mạnh mật khẩu
+ */
+const validatePasswordComplexity = (password) => {
+  if (!PASSWORD_REGEX.test(password)) {
+    throw {
+      statusCode: 400,
+      message:
+        "Mật khẩu phải có ít nhất 8 ký tự, bao gồm chữ hoa, chữ thường, số và ký tự đặc biệt (@$!%*?&#).",
+    };
+  }
+};
+
+/**
+ * Kiểm tra mật khẩu mới có trùng với N mật khẩu gần nhất không
+ */
+const checkPasswordHistory = async (userId, newPassword) => {
+  const histories = await PasswordHistory.findAll({
+    where: { user_id: userId },
+    order: [["created_at", "DESC"]],
+    limit: PASSWORD_HISTORY_LIMIT,
+  });
+
+  for (const history of histories) {
+    const isMatch = await bcrypt.compare(newPassword, history.password_hash);
+    if (isMatch) {
+      throw {
+        statusCode: 400,
+        message: `Mật khẩu mới không được trùng với ${PASSWORD_HISTORY_LIMIT} mật khẩu gần nhất bạn đã sử dụng!`,
+      };
+    }
+  }
+};
+
+/**
+ * Lưu mật khẩu đã hash vào lịch sử
+ */
+const savePasswordHistory = async (userId, hashedPassword) => {
+  await PasswordHistory.create({
+    user_id: userId,
+    password_hash: hashedPassword,
+  });
+};
 
 /**
  * Đăng ký tài khoản mới
@@ -313,21 +363,24 @@ const register = async (payload, file = null) => {
     address,
   } = payload;
 
-  // 1. Kiểm tra SĐT 10 số
+  // 1. Kiểm tra độ mạnh mật khẩu
+  validatePasswordComplexity(password);
+
+  // 2. Kiểm tra SĐT 10 số
   const phoneRegex = /^[0-9]{10}$/;
   if (contact_phone && !phoneRegex.test(contact_phone)) {
     throw { statusCode: 400, message: "Số điện thoại phải đúng 10 chữ số." };
   }
 
-  // 2. Kiểm tra Email tồn tại
+  // 3. Kiểm tra Email tồn tại
   const existingUser = await User.findOne({ where: { email } });
   if (existingUser)
     throw { statusCode: 400, message: "Email này đã được sử dụng." };
 
-  // 3. Hash mật khẩu
+  // 4. Hash mật khẩu
   const hashedPassword = await bcrypt.hash(password, 10);
 
-  // 4. Tạo User
+  // 5. Tạo User
   const user = await User.create({
     username: username || email.split("@")[0],
     email,
@@ -335,6 +388,9 @@ const register = async (payload, file = null) => {
     role,
     status: role === "Business" ? "PENDING" : "ACTIVE",
   });
+
+  // 6. Lưu mật khẩu vào lịch sử (để làm mốc so sánh cho lần đổi đầu tiên)
+  await savePasswordHistory(user.id, hashedPassword);
 
   // 5. Nếu là Business, tạo Store với thông tin pháp lý
   // 5. Nếu là Business, tạo Store với thông tin pháp lý
@@ -642,9 +698,8 @@ const resetPassword = async ({ email, otp, newPassword }) => {
     };
   }
 
-  if (newPassword.length < 6) {
-    throw { statusCode: 400, message: "Mật khẩu mới phải có ít nhất 6 ký tự." };
-  }
+  // Kiểm tra độ mạnh mật khẩu mới (thay thế check length < 6 cũ)
+  validatePasswordComplexity(newPassword);
 
   const user = await User.findOne({ where: { email } });
   if (!user || !user.resetOtp || !user.resetOtpExpires) {
@@ -664,12 +719,18 @@ const resetPassword = async ({ email, otp, newPassword }) => {
     };
   }
 
+  // Kiểm tra mật khẩu mới không trùng với 3 mật khẩu gần nhất
+  await checkPasswordHistory(user.id, newPassword);
+
   // Hash mật khẩu mới và lưu
   const hashedPassword = await bcrypt.hash(newPassword, 10);
   user.password = hashedPassword;
   user.resetOtp = null;
   user.resetOtpExpires = null;
   await user.save();
+
+  // Lưu mật khẩu mới vào lịch sử
+  await savePasswordHistory(user.id, hashedPassword);
 
   console.log(`[Auth] Password reset success for ${email}`);
   return { success: true, message: "Đổi mật khẩu thành công." };

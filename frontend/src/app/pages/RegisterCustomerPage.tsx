@@ -1,4 +1,4 @@
-﻿import React, { useState } from 'react';
+﻿import React, { useState, useMemo } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { Button } from '../components/ui/button';
@@ -6,7 +6,22 @@ import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '../components/ui/card';
 import { toast } from 'sonner';
-import { UserPlus, Mail, Lock, User } from 'lucide-react';
+import { UserPlus, Mail, Lock, User, CheckCircle, XCircle } from 'lucide-react';
+
+const PASSWORD_REGEX = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&#])[A-Za-z\d@$!%*?&#]{8,}$/;
+
+interface PasswordRule {
+  label: string;
+  test: (pw: string) => boolean;
+}
+
+const passwordRules: PasswordRule[] = [
+  { label: 'Ít nhất 8 ký tự', test: (pw) => pw.length >= 8 },
+  { label: 'Có chữ hoa (A-Z)', test: (pw) => /[A-Z]/.test(pw) },
+  { label: 'Có chữ thường (a-z)', test: (pw) => /[a-z]/.test(pw) },
+  { label: 'Có số (0-9)', test: (pw) => /\d/.test(pw) },
+  { label: 'Có ký tự đặc biệt (@$!%*?&#)', test: (pw) => /[@$!%*?&#]/.test(pw) },
+];
 
 export default function RegisterCustomerPage() {
   const [username, setUsername] = useState('');
@@ -14,8 +29,8 @@ export default function RegisterCustomerPage() {
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [passwordTouched, setPasswordTouched] = useState(false);
 
-  
   const { registerCustomer, user } = useAuth();
   const navigate = useNavigate();
 
@@ -26,6 +41,8 @@ export default function RegisterCustomerPage() {
     }
   }, [user, navigate]);
 
+  const isPasswordValid = useMemo(() => PASSWORD_REGEX.test(password), [password]);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -34,8 +51,8 @@ export default function RegisterCustomerPage() {
       return;
     }
 
-    if (password.length < 6) {
-      toast.error('Mật khẩu phải có ít nhất 6 ký tự');
+    if (!PASSWORD_REGEX.test(password)) {
+      toast.error('Mật khẩu phải có ít nhất 8 ký tự, bao gồm chữ hoa, chữ thường, số và ký tự đặc biệt.');
       return;
     }
 
@@ -44,7 +61,7 @@ export default function RegisterCustomerPage() {
     try {
       await registerCustomer(username, email, password);
       toast.success('Đăng ký thành công! Vui lòng đăng nhập.');
-      
+
       // Chuyển hướng về trang login sau khi đăng ký thành công
       navigate('/login');
     } catch (error) {
@@ -109,12 +126,34 @@ export default function RegisterCustomerPage() {
                   type="password"
                   placeholder="••••••••"
                   value={password}
-                  onChange={(e) => setPassword(e.target.value)}
+                  onChange={(e) => {
+                    setPassword(e.target.value);
+                    if (!passwordTouched) setPasswordTouched(true);
+                  }}
                   required
-                  minLength={6}
                   className="pl-10"
                 />
               </div>
+              {/* Real-time password strength indicators */}
+              {passwordTouched && (
+                <div className="mt-2 space-y-1">
+                  {passwordRules.map((rule) => {
+                    const passed = rule.test(password);
+                    return (
+                      <div key={rule.label} className="flex items-center gap-2 text-xs">
+                        {passed ? (
+                          <CheckCircle className="size-3.5 text-emerald-500 shrink-0" />
+                        ) : (
+                          <XCircle className="size-3.5 text-red-400 shrink-0" />
+                        )}
+                        <span className={passed ? 'text-emerald-600' : 'text-red-500'}>
+                          {rule.label}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
             <div className="space-y-2">
               <Label htmlFor="confirmPassword">Xác nhận mật khẩu</Label>
@@ -127,10 +166,12 @@ export default function RegisterCustomerPage() {
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}
                   required
-                  minLength={6}
                   className="pl-10"
                 />
               </div>
+              {confirmPassword && password !== confirmPassword && (
+                <p className="text-xs text-red-500 mt-1">Mật khẩu xác nhận không khớp</p>
+              )}
             </div>
           </CardContent>
           <CardFooter className="flex flex-col space-y-4">
