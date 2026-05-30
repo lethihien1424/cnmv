@@ -143,6 +143,14 @@ const findProductDetailById = async (id) => {
   });
 };
 
+const updateProductStatus = async (id, status) => {
+  const product = await Product.findByPk(id, { paranoid: false });
+  if (!product) return null;
+  product.status = status;
+  await product.save();
+  return product;
+};
+
 module.exports = {
   createProduct,
   findProductById,
@@ -150,4 +158,5 @@ module.exports = {
   deleteProduct,
   searchProducts,
   findProductDetailById,
+  updateProductStatus,
 };

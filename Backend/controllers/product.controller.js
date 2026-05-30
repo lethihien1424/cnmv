@@ -197,6 +197,45 @@ const suggestFlashSale = async (req, res) => {
     });
   }
 };
+const toggleProductStatus = async (req, res) => {
+  try {
+    const result = await productService.toggleProductStatus(
+      req.params.id,
+      req.user,
+    );
+
+    // Real-time sync: cập nhật vector sản phẩm trên Qdrant (fire-and-forget)
+    if (result.status === "DISCONTINUED") {
+      vectorService
+        .deleteProductVector(req.params.id)
+        .catch((err) =>
+          console.error(
+            "[Vector DB] Lỗi xóa vector sau toggleProductStatus (DISCONTINUED):",
+            err.message,
+          ),
+        );
+    } else {
+      vectorService
+        .upsertSingleProduct(result)
+        .catch((err) =>
+          console.error(
+            "[Vector DB] Lỗi upsert sau toggleProductStatus (AVAILABLE):",
+            err.message,
+          ),
+        );
+    }
+
+    return res.status(200).json({
+      message: "Toggle product status success",
+      data: result,
+    });
+  } catch (error) {
+    return res.status(error.statusCode || 500).json({
+      message: error.message || "Internal server error",
+    });
+  }
+};
+
 // Kiểm tra ở cuối file của bạn, phải chắc chắn có 'updateProduct' ở đây:
 module.exports = {
   createProduct,
@@ -207,4 +246,5 @@ module.exports = {
   setFlashSale,
   scheduleFlashSale,
   suggestFlashSale,
+  toggleProductStatus,
 };

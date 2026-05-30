@@ -54,4 +54,11 @@ router.put(
   productController.scheduleFlashSale,
 );
 
+router.patch(
+  "/:id/status",
+  verifyToken,
+  checkRole(["Customer", "Business"]),
+  productController.toggleProductStatus,
+);
+
 module.exports = router;

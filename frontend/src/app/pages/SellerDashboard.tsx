@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { io, type Socket } from 'socket.io-client';
 import { useAuth } from '../contexts/AuthContext';
 import { Button } from '../components/ui/button';
+import { Switch } from '../components/ui/switch';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { Badge } from '../components/ui/badge';
 import { Separator } from '../components/ui/separator';
@@ -35,7 +36,8 @@ import {
   getSellerProducts,
   parseDescriptionMetadata,
   updateProduct,
-  updateFlashSale, // Thêm hàm này từ bước trước
+  updateFlashSale,
+  toggleProductStatus,
   type Category,
   type Product,
   type ProductCondition,
@@ -408,11 +410,27 @@ setRecentOrders(orders);
     }
   };
 
+  const handleToggleStatus = async (product: Product) => {
+    try {
+      await toggleProductStatus(product.id, token);
+      const newStatus = product.status === 'AVAILABLE' ? 'DISCONTINUED' : 'AVAILABLE';
+      toast.success(
+        newStatus === 'DISCONTINUED'
+          ? `Đã ngừng bán "${product.name}"`
+          : `Đã mở bán lại "${product.name}"`
+      );
+      void loadProducts();
+    } catch (error) {
+      console.error('Lỗi cập nhật trạng thái:', error);
+      toast.error('Có lỗi xảy ra, vui lòng thử lại sau!');
+    }
+  };
+
   useEffect(() => {
     if (activeTab === 'products') {
       void loadProducts();
       void loadCategories();
-    } 
+    }
   }, [activeTab]);
 
   
@@ -1954,8 +1972,19 @@ const handleSubmitProduct = async (event: React.FormEvent<HTMLFormElement>) => {
                               </div>
                             )}
                           </div>
-                          <div className="flex items-center gap-2">
-                            {getStatusBadge(product.status)}
+                          <div className="flex items-center gap-3">
+                            {/* Toggle trạng thái bán */}
+                            <div className="flex items-center gap-2">
+                              <Switch
+                                checked={product.status === 'AVAILABLE'}
+                                onCheckedChange={() => handleToggleStatus(product)}
+                                title={product.status === 'AVAILABLE' ? 'Nhấn để ngừng bán' : 'Nhấn để mở bán lại'}
+                                className="data-[state=checked]:bg-green-500 data-[state=unchecked]:bg-gray-400"
+                              />
+                              <span className="text-xs text-gray-500 whitespace-nowrap">
+                                {product.status === 'AVAILABLE' ? 'Đang bán' : 'Ngừng bán'}
+                              </span>
+                            </div>
 
                             {/* NÚT THÊM/SỬA FLASH SALE */}
                             <Button

@@ -203,6 +203,14 @@ export async function deleteProduct(id: string, token?: string | null) {
   );
 }
 
+export async function toggleProductStatus(productId: string, token?: string | null): Promise<Product> {
+  return apiRequest(
+    `${PRODUCTS_PATH}/${productId}/status`,
+    { method: 'PATCH' },
+    getToken(token)
+  );
+}
+
 /* =========================================================
    SELLER (FIXED EXPORT MISSING)
 ========================================================= */

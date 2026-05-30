@@ -1451,6 +1451,22 @@ const suggestFlashSale = async (id, user) => {
   };
 };
 
+const toggleProductStatus = async (id, user) => {
+  const product = await productRepository.findProductById(id);
+  if (!product) {
+    const error = new Error("Product not found");
+    error.statusCode = 404;
+    throw error;
+  }
+
+  await validateManagedStore(product.store_id, user);
+
+  const newStatus =
+    product.status === "AVAILABLE" ? "DISCONTINUED" : "AVAILABLE";
+  const updated = await productRepository.updateProductStatus(id, newStatus);
+  return updated;
+};
+
 module.exports = {
   createProduct,
   updateProduct,
@@ -1461,4 +1477,5 @@ module.exports = {
   scheduleFlashSale,
   suggestFlashSale,
   validateAndFormatVariants,
+  toggleProductStatus,
 };
