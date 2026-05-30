@@ -18,6 +18,7 @@ import SearchResultsPage from './pages/SearchResultsPage';
 
 import CustomerProfilePage from './pages/CustomerProfilePage';
 import EditProfilePage from './pages/EditProfilePage';
+import MyVoucherPage from './pages/MyVoucherPage';
 
 import MyOrdersPage from './pages/MyOrdersPage';
 import OrderHistoryPage from './pages/OrderHistoryPage';
@@ -39,7 +40,7 @@ export const router = createBrowserRouter([
   { path: '/register/customer', Component: RegisterCustomerPage },
 
   { path: '/register/business', Component: RegisterBusinessPage },
-
+  
   { path: '/', Component: LandingPage },
 
   { path: '/product/:id', Component: ProductDetailPage },
@@ -175,8 +176,17 @@ export const router = createBrowserRouter([
         <CustomerProfilePage />
       </ProtectedRoute>
     ),
+    
   },
 
+  {
+  path: '/my-vouchers',                    // ← THÊM ROUTE NÀY
+  element: (
+    <ProtectedRoute allowedRoles={['customer', 'business']}>
+      <MyVoucherPage />
+    </ProtectedRoute>
+  ),
+},
   {
     path: '/customer/edit-profile',
     element: (

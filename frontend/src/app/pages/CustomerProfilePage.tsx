@@ -267,7 +267,15 @@ export default function CustomerProfilePage() {
       onClick: handleClaimDailyXu,
       disabled: !dailyXu.canClaim || dailyXuLoading,
     },
-    { title: 'Kho Voucher', Icon: Ticket, subtitle: '50+ Voucher', badge: '50+ Voucher', color: 'text-cyan-700 bg-cyan-50', onClick: undefined, disabled: false },
+    {
+    title: 'Kho Voucher',
+    Icon: Ticket,
+    subtitle: 'Xem tất cả voucher',
+    badge: 'Voucher',
+    color: 'text-orange-700 bg-orange-50',
+    onClick: () => navigate('/my-vouchers'),
+    disabled: false,
+  },
   ];
 
   return (

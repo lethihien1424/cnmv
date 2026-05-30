@@ -26,7 +26,20 @@ module.exports = (sequelize) => {
         type: DataTypes.BIGINT,
         defaultValue: 0,
       },
+      platform_voucher_id: {
+        type: DataTypes.UUID,
+        allowNull: true,
+      },
 
+      shop_voucher_id: {
+        type: DataTypes.UUID,
+        allowNull: true,
+      },
+
+      discount_amount: {
+        type: DataTypes.BIGINT,
+        defaultValue: 0,
+      },
       // VẬN CHUYỂN
       shipping_provider: {
         type: DataTypes.STRING(20),

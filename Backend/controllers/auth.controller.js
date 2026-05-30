@@ -1,6 +1,7 @@
 const authService = require("../services/auth.service");
 const aiService = require("../services/ai.service");
 const { User } = require("../models");
+const voucherService = require("../services/voucher.service");
 const fs = require("fs");
 
 // const register = async (req, res) => {
@@ -70,7 +71,7 @@ const register = async (req, res) => {
   try {
     const { role, representative_name, tax_code } = req.body;
 
-    // ── AI OCR: Chỉ kiểm tra nếu là Business đăng ký và có file ảnh ──
+    // ── AI OCR: Chỉ kiểm tra nếu là Business ──
     if (role === "Business") {
       const file = req.files?.["business_license_image"]?.[0];
       if (!file) {
@@ -87,7 +88,6 @@ const register = async (req, res) => {
         );
 
         if (!aiResult.is_correct_owner) {
-          // Xóa file đã upload nếu AI từ chối
           fs.unlink(file.path, () => {});
           return res.status(400).json({
             message: `Xác thực GPKD thất bại: ${aiResult.reason}`,
@@ -95,15 +95,31 @@ const register = async (req, res) => {
         }
         console.log("[AI OCR] Xác thực thành công:", aiResult.reason);
       } catch (aiErr) {
-        // Không block đăng ký nếu AI bị lỗi kết nối / tesseract lỗi
         console.error("[AI OCR] Lỗi, cho qua:", aiErr.message);
       }
     }
 
-    // ── Lưu vào Database ──
+    // ── Đăng ký user ──
     const file = req.files?.["business_license_image"]?.[0] || null;
     const result = await authService.register(req.body, file);
-    return res.status(201).json({ message: "Register success", data: result });
+
+    // ======================
+    // TỰ ĐỘNG CẤP VOUCHER CHO NGƯỜI MỚI
+    // ======================
+    if (result && result.id) {
+      try {
+        await voucherService.grantDefaultVouchers(result.id, true);
+        console.log(`[Auto Voucher] Đã cấp voucher mặc định cho user ${result.id}`);
+      } catch (voucherErr) {
+        console.error("[Auto Voucher] Lỗi cấp voucher:", voucherErr.message);
+        // Không throw lỗi để không ảnh hưởng việc đăng ký
+      }
+    }
+
+    return res.status(201).json({ 
+      message: "Đăng ký thành công! Bạn đã nhận được một số voucher ưu đãi.", 
+      data: result 
+    });
 
   } catch (error) {
     return res.status(error.statusCode || 500).json({

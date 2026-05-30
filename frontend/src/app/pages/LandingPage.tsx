@@ -7,6 +7,7 @@ import { ImageWithFallback } from '../components/figma/ImageWithFallback';
 import HeroCarousel from '../components/HeroCarousel';
 import StoreHeader from '../components/StoreHeader';
 import StoreFooter from '../components/StoreFooter';
+import voucherService from '../services/voucherService';
 import { getCategories, getProducts, type Category, type Product } from '../services/productService';
 import { getCategoryIcon, guessCategoryIcon } from '../utils/categoryIcon';
 import { 
@@ -33,7 +34,18 @@ export default function LandingPage() {
   const [categoriesLoading, setCategoriesLoading] = React.useState(true);
   const [activeSearchQuery, setActiveSearchQuery] = React.useState('');
   const [activeCategoryId, setActiveCategoryId] = React.useState<string | null>(null);
-  
+  const [publicVouchers, setPublicVouchers] =
+  React.useState<any[]>([]);
+  const [myVouchers,
+setMyVouchers] =
+React.useState<any[]>([]);
+  const [showVoucherModal,
+setShowVoucherModal] =
+React.useState(false);
+
+
+const [voucherLoading, setVoucherLoading] =
+  React.useState(false);
   // STATE ĐẾM NGƯỢC THỜI GIAN FLASH SALE
   const [timeLeft, setTimeLeft] = React.useState({
     hours: 2,
@@ -47,13 +59,22 @@ export default function LandingPage() {
       setCategoriesLoading(true);
 
       try {
-        const [allProducts, allCategories] = await Promise.all([
-          getProducts({ limit: 100 }),
-          getCategories(),
-        ]);
+       const [
+        allProducts,
+        allCategories,
+        allVouchers,
+        userVouchers
+      ] = await Promise.all([
+        getProducts({ limit: 100 }),
+        getCategories(),
+        voucherService.getPublicPlatformVouchers(),
+        voucherService.getMyVouchers()
+      ]);
 
         setProducts(allProducts);
         setCategories(allCategories);
+        setPublicVouchers(allVouchers || []);
+        setMyVouchers(userVouchers || []);
       } catch {
         setProducts([]);
         setCategories([]);
@@ -129,7 +150,46 @@ export default function LandingPage() {
     { id: 5, name: 'iPad Air M2', price: 16990000, image: '/src/imports/image-5.png' },
     { id: 6, name: 'Apple Watch Series 9', price: 10990000, image: '/src/imports/image.png' },
   ];
+ const handleSaveVoucher =
+async (voucherId: string) => {
 
+  try {
+
+    setVoucherLoading(true);
+
+    await voucherService.saveVoucher(
+      voucherId
+    );
+
+    const updated =
+      await voucherService.getMyVouchers();
+
+    setMyVouchers(updated);
+
+  } catch (error:any) {
+
+    alert(
+      error?.response?.data?.message
+    );
+
+  } finally {
+
+    setVoucherLoading(false);
+
+  }
+};
+const isSavedVoucher =
+(
+  voucherId:string
+) => {
+
+  return myVouchers.some(
+    (v:any) =>
+      v.voucher_id ===
+      voucherId
+  );
+
+};
   const formatPrice = (price: number) => {
     return new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(price);
   };
@@ -272,7 +332,23 @@ const visibleProducts = React.useMemo(() => {
               <HeroCarousel />
               <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5 lg:gap-4">
                 {quickLinks.map((link, index) => (
-                  <Card key={index} className="hover:shadow-md transition-all cursor-pointer group">
+                  <Card
+                    key={index}
+                    onClick={()=>{
+                      if(
+                        link.label ===
+                        "Mã Giảm Giá"
+                      ){
+                        setShowVoucherModal(
+                          true
+                        );
+                      }
+                    }}
+                    className="
+                      hover:shadow-md
+                      transition-all
+                      cursor-pointer
+                      group">
                     <CardContent className="p-4 text-center">
                       <div className={`size-12 ${link.bgColor} rounded-lg flex items-center justify-center mx-auto mb-3 group-hover:scale-110 transition-transform`}>
                         <link.icon className={`size-6 ${link.color}`} />
@@ -286,7 +362,7 @@ const visibleProducts = React.useMemo(() => {
           </div>
         </div>
       </section>
-
+      
       {/* THÊM GIAO DIỆN ĐẾM NGƯỢC Ở PHẦN FLASH SALE NÀY */}
       <section className="py-16 bg-gray-50">
         <div className="container mx-auto px-4">
@@ -430,7 +506,131 @@ const visibleProducts = React.useMemo(() => {
 </Button>
         </div>
       </section>
+    {showVoucherModal && (
 
+    <div
+      className="
+        fixed inset-0
+        bg-black/50
+        z-50
+        flex
+        items-center
+        justify-center
+      "
+    >
+
+    <div
+      className="
+        bg-white
+        w-full
+        max-w-xl
+        rounded-xl
+        p-6
+        max-h-[80vh]
+        overflow-y-auto
+      "
+    >
+
+    <div
+      className="
+        flex
+        justify-between
+        items-center
+        mb-4
+      "
+    >
+    <h2 className="text-xl font-bold">
+      Mã giảm giá
+    </h2>
+
+    <Button
+      variant="ghost"
+      onClick={() =>
+        setShowVoucherModal(
+          false
+        )
+      }
+    >
+      Đóng
+    </Button>
+
+    </div>
+
+    <div className="space-y-3">
+
+    {publicVouchers.map(
+    (voucher)=>(
+
+    <div
+      key={voucher.id}
+      className="
+        border
+        rounded-lg
+        p-4
+        flex
+        justify-between
+        items-center
+      "
+    >
+
+    <div>
+
+    <p className="font-bold">
+      {voucher.code}
+    </p>
+
+    <p className="text-sm text-gray-500">
+      {voucher.name}
+    </p>
+
+    </div>
+
+    {
+    isSavedVoucher(
+  voucher.id
+)
+    ?
+
+    <div
+      className="
+        bg-green-100
+        text-green-700
+        px-4
+        py-2
+        rounded-lg
+        font-semibold
+      "
+    >
+      Đã lưu
+    </div>
+
+    :
+
+    <Button
+  disabled={voucherLoading}
+  onClick={() =>
+    handleSaveVoucher(
+      voucher.id
+    )
+  }
+>
+  {voucherLoading ? "Đang lưu..." : "Lưu"}
+</Button>
+
+    }
+
+    </div>
+
+    ))
+    }
+
+    </div>
+
+    </div>
+
+    </div>
+
+    )}
       <StoreFooter />
     </div>
   );

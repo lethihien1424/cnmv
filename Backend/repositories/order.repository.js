@@ -193,7 +193,38 @@ const deleteOrder = async (orderId) => {
 
   return true;
 };
+// ─── HELPER: Lọc theo ngày/tháng/năm ─────────────────────────────────────
+const buildOrderWhere = (storeId, filters = {}) => {
+  const { period, date, month, year, status } = filters;
 
+  let createdAtFilter = null;
+
+  if (period === "day" && date) {
+    const start = new Date(date);
+    const end = new Date(date);
+    end.setDate(end.getDate() + 1);
+    createdAtFilter = { [Op.gte]: start, [Op.lt]: end };
+  }
+
+  if (period === "month" && month) {
+    const [y, m] = month.split("-").map(Number);
+    const start = new Date(y, m - 1, 1);
+    const end = new Date(y, m, 1);
+    createdAtFilter = { [Op.gte]: start, [Op.lt]: end };
+  }
+
+  if (period === "year" && year) {
+    const start = new Date(Number(year), 0, 1);
+    const end = new Date(Number(year) + 1, 0, 1);
+    createdAtFilter = { [Op.gte]: start, [Op.lt]: end };
+  }
+
+  return {
+    store_id: storeId,
+    ...(createdAtFilter && { created_at: createdAtFilter }),
+    ...(status && { order_status: status }),
+  };
+};
 // ─── getWalletByUser ──────────────────────────────────────────────────────────
 const getWalletByUser = async (userId) => {
   let wallet = await Wallet.findOne({
@@ -342,6 +373,7 @@ module.exports = {
   updatePaymentStatus,
   cancelOrder,
   deleteOrder,
+  buildOrderWhere,
   getWalletByUser,
   getOrdersByUserFiltered,
   getPurchaseSummaryByUser,

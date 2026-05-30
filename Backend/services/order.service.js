@@ -8,6 +8,13 @@ const {
   WalletTransaction,
 } = require("../models");
 const orderRepo = require("../repositories/order.repository");
+const voucherService = require(
+  "./voucher.service"
+);
+
+const voucherRepo = require(
+  "../repositories/voucher.repository"
+);
 const shippingService = require("./shipping.service");
 
 const buildShippingAddress = (a) =>
@@ -19,6 +26,8 @@ const processOrder = async (
   paymentMethod,
   addressId,
   serviceType = "STANDARD",
+  platformVoucherId = null,
+  shopVoucherId = null,
 ) => {
   if (!addressId) throw new Error("Vui lòng chọn địa chỉ nhận hàng");
 
@@ -130,13 +139,42 @@ const processOrder = async (
       hasBulky,
     );
 
-    if (!shippingResult.success)
+       if (!shippingResult.success)
       throw new Error(
         shippingResult.message || "Không tính được phí vận chuyển",
       );
 
-    const shippingFee = shippingResult.shippingFee ?? 0;
-    const totalAmount = subtotal + shippingFee;
+    // ==================== XỬ LÝ VOUCHER + FREESHIP ====================
+    let discountAmount = 0;
+    let shippingDiscountPercent = 0;
+
+    if (platformVoucherId || shopVoucherId) {
+      const voucherResult = await voucherService.validateVoucher(
+        userId,
+        {
+          platform_voucher_id: platformVoucherId,
+          shop_voucher_id: shopVoucherId,
+          subtotal,
+        }
+      );
+
+      discountAmount = voucherResult.total_discount || 0;
+      shippingDiscountPercent = voucherResult.freeship_discount || 0;
+
+      console.log(`🔍 Voucher Result: freeship=${shippingDiscountPercent}%, discount=${discountAmount}`);
+    }
+
+    let shippingFee = shippingResult.shippingFee ?? 0;
+
+    // Áp dụng giảm phí ship từ voucher FREESHIP
+    if (shippingDiscountPercent > 0) {
+      const shippingDiscountAmount = Math.round(shippingFee * (shippingDiscountPercent / 100));
+      shippingFee = Math.max(0, shippingFee - shippingDiscountAmount);
+      console.log(`✅ ĐÃ GIẢM PHÍ SHIP ${shippingDiscountPercent}%: -${shippingDiscountAmount}đ → Còn ${shippingFee}đ`);
+    }
+
+    const totalAmount = subtotal + shippingFee - discountAmount;
+    // ==================== KẾT THÚC XỬ LÝ VOUCHER ====================
 
     // Xử lý thanh toán ví
     if (paymentMethod === "WALLET") {
@@ -163,8 +201,12 @@ const processOrder = async (
       estimated_delivery_time: shippingResult.estimatedDeliveryTime,
       shipping_address: shippingAddress,
       payment_method: paymentMethod,
+      platform_voucher_id: platformVoucherId,
+      shop_voucher_id: shopVoucherId,
+      discount_amount: discountAmount,
       payment_status: paymentMethod === "COD" ? "UNPAID" : "PAID",
       order_status: paymentMethod === "COD" ? "PENDING" : "PICKUP",
+
     });
 
     if (paymentMethod === "WALLET") {
@@ -192,17 +234,40 @@ const processOrder = async (
     }
 
     orders.push(order);
+    if (platformVoucherId) {
+
+    await voucherRepo.markUserVoucherUsed(
+      userId,
+      platformVoucherId,
+      order.id
+    );
+
+    await voucherRepo.incrementPlatformVoucherUsedCount(
+      platformVoucherId
+    );
   }
 
-  return orders;
+  if (shopVoucherId) {
+
+  await voucherRepo.incrementShopVoucherUsedCount(
+    shopVoucherId
+  );
+}
+}
+
+return orders;
 };
 
-const createOrderFromCart = async (
+const createOrderFromCart =
+async (
+  
   userId,
   selectedItems,
   paymentMethod,
   addressId,
-  serviceType = "STANDARD",
+  serviceType,
+  platformVoucherId = null,
+  shopVoucherId = null,
 ) => {
   if (!selectedItems || selectedItems.length === 0)
     throw new Error("Không có sản phẩm nào được chọn");
@@ -239,14 +304,16 @@ const createOrderFromCart = async (
     });
   }
 
-  const orders = await processOrder(
-    userId,
-    items,
-    paymentMethod,
-    addressId,
-    serviceType,
-  );
-
+  const orders =
+ await processOrder(
+  userId,
+  items,
+  paymentMethod,
+  addressId,
+  serviceType,
+  platformVoucherId,
+  shopVoucherId,
+);
   for (let item of items) {
     const cartItem = await CartDetail.findOne({
       where: {
@@ -276,6 +343,8 @@ const buyNow = async (
   serviceType = "STANDARD",
   size = null,
   color = null,
+  platformVoucherId = null,
+  shopVoucherId = null,
 ) => {
   const product = await Product.findOne({
     where: { id: productId, deleted_at: null, status: "AVAILABLE" },
@@ -288,6 +357,8 @@ const buyNow = async (
     paymentMethod,
     addressId,
     serviceType,
+    platformVoucherId,
+    shopVoucherId,
   );
 };
 
