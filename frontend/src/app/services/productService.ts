@@ -1,3 +1,4 @@
+// frontend/src/app/services/productService.ts
 import { apiRequest } from './api';
 import axios from 'axios';
 /* =========================================================

@@ -18,6 +18,7 @@ const shippingRoutes = require("./routes/shipping.route");
 const storeRoutes = require("./routes/store.route");
 const geocodeRoute = require("./routes/geocode.route");
 const dashboardRoutes = require("./routes/dashboard.route");
+const voucherRoutes = require("./routes/voucher.route");
 
 const app = express();
 
@@ -81,6 +82,8 @@ app.get("/health", (req, res) => {
   res.status(200).json({ message: "Backend is running" });
 });
 app.use("/api/dashboard", require("./routes/dashboard.route"));
+app.use("/api/vouchers", voucherRoutes);
+
 // GLOBAL ERROR HANDLER
 app.use((err, req, res, next) => {
 

@@ -14,6 +14,10 @@ const createReviewModel = require("./review.model");
 // ── THÊM 2 DÒNG NÀY ──
 const createWalletModel = require("./wallet.model");
 const createWalletTransactionModel = require("./walletTransaction.model");
+// ── VOUCHER MODELS ──
+const createVoucherModel = require("./voucher.model");
+const createShopVoucherModel = require("./shopVoucher.model");
+const createUserVoucherModel = require("./userVoucher.model");
 
 const dbName = (process.env.DB_NAME || "cnmoi").trim().replace(/\.sql$/i, "");
 
@@ -50,6 +54,10 @@ const Review = createReviewModel(sequelize);
 // ── THÊM 2 DÒNG NÀY ──
 const Wallet = createWalletModel(sequelize);
 const WalletTransaction = createWalletTransactionModel(sequelize);
+// ── VOUCHER INSTANCES ──
+const Voucher = createVoucherModel(sequelize);
+const ShopVoucher = createShopVoucherModel(sequelize);
+const UserVoucher = createUserVoucherModel(sequelize);
 
 User.hasMany(Store, { foreignKey: "owner_id", as: "stores" });
 Store.belongsTo(User, { foreignKey: "owner_id", as: "owner" });
@@ -96,6 +104,14 @@ Wallet.belongsTo(User, { foreignKey: "user_id", as: "user" });
 Wallet.hasMany(WalletTransaction, { foreignKey: "wallet_id", as: "transactions" });
 WalletTransaction.belongsTo(Wallet, { foreignKey: "wallet_id", as: "wallet" });
 
+// ── ASSOCIATIONS CHO VOUCHER ──
+User.hasMany(UserVoucher, { foreignKey: "user_id", as: "userVouchers" });
+UserVoucher.belongsTo(User, { foreignKey: "user_id", as: "user" });
+Voucher.hasMany(UserVoucher, { foreignKey: "voucher_id", as: "userVouchers" });
+UserVoucher.belongsTo(Voucher, { foreignKey: "voucher_id", as: "voucher" });
+Store.hasMany(ShopVoucher, { foreignKey: "store_id", as: "shopVouchers" });
+ShopVoucher.belongsTo(Store, { foreignKey: "store_id", as: "store" });
+
 module.exports = {
   sequelize,
   User,
@@ -112,4 +128,8 @@ module.exports = {
   // ── THÊM 2 DÒNG NÀY ──
   Wallet,
   WalletTransaction,
+  // ── VOUCHER ──
+  Voucher,
+  ShopVoucher,
+  UserVoucher,
 };

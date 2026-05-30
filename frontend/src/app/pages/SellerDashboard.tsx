@@ -23,6 +23,7 @@ import {
 } from "recharts";
 import { Input } from '../components/ui/input';
 // IMPORT TRANG CÀI ĐẶT VÀO ĐÂY
+import VoucherManagementPage from './VoucherManagementPage';
 import StoreSettingsPage from './StoreSettingsPage';// Import Input UI
 import StoreOrdersPage from './StoreOrdersPage';
 import { dashboardAPI } from '../services/dashboardService';
@@ -51,6 +52,7 @@ import { getAbsoluteImageUrl } from '../services/api';
 import {
   Home,
   Package,
+  Ticket,
   ShoppingCart,
   Users,
   BarChart3,
@@ -72,7 +74,14 @@ import {
   Zap // Thêm icon Zap cho Flash Sale
 } from 'lucide-react';
 
-type DashboardTab = 'overview' | 'products' | 'orders' | 'customers' | 'reports' | 'settings';
+type DashboardTab =
+  | 'overview'
+  | 'products'
+  | 'orders'
+  | 'customers'
+  | 'reports'
+  | 'promotions'
+  | 'settings';
 
 type ChatSender = 'USER' | 'STORE';
 
@@ -218,14 +227,14 @@ const [selectedOrderDetail, setSelectedOrderDetail] =
   const storeType = user?.role === 'business' ? 'Doanh nghiệp (B2C)' : 'Cá nhân (C2C)';
 
   const menuItems = [
-    { id: 'overview', label: 'Tổng quan', icon: Home },
-    { id: 'products', label: 'Sản phẩm', icon: Package },
-    { id: 'orders', label: 'Đơn đặt hàng', icon: ShoppingCart },
-    { id: 'customers', label: 'Khách hàng', icon: Users },
-    { id: 'reports', label: 'Báo cáo', icon: BarChart3 },
-    { id: 'settings', label: 'Cài đặt', icon: Settings },
-  ];
-
+  { id: 'overview', label: 'Tổng quan', icon: Home },
+  { id: 'products', label: 'Sản phẩm', icon: Package },
+  { id: 'orders', label: 'Đơn đặt hàng', icon: ShoppingCart },
+  { id: 'customers', label: 'Khách hàng', icon: Users },
+  { id: 'reports', label: 'Báo cáo', icon: BarChart3 },
+  { id: 'promotions', label: 'Khuyến mãi', icon: Ticket },
+  { id: 'settings', label: 'Cài đặt', icon: Settings },
+];
   const storeId = useMemo(() => {
     if (user?.businessStoreId) {
       return user.businessStoreId;
@@ -292,7 +301,7 @@ setRecentOrders(orders);
     loadDashboard();
   }
 
-}, [storeId, activeTab]);
+}, [storeId, activeTab, dateFilterType, selectedDate]);
   const formatMoney = (value: number) => `${value.toLocaleString('vi-VN')}₫`;
 
   const formatChatTime = (value: string) => {
@@ -840,18 +849,6 @@ const addVariant = () => {
     const normalized = onlyDigits.replace(/^0+(?=\d)/, '');
     updateVariant(index, key, normalized === '' ? 0 : Number(normalized));
   };
-const handleDeleteProduct = async (product: Product) => {
-  if (!window.confirm("Bạn có chắc chắn muốn xóa sản phẩm này?")) return;
-  
-  try {
-    await deleteProduct(product.id, token);
-    toast.success("Xóa sản phẩm thành công!");
-    await loadProducts(); // Tải lại danh sách
-  } catch (error: any) {
-    console.error(error);
-    toast.error(error.message || "Lỗi khi xóa sản phẩm");
-  }
-};
 
 const validateAndFormatVariants = (variants: any[]) => {
   return variants.map(v => ({
@@ -1250,78 +1247,46 @@ const handleSubmitProduct = async (event: React.FormEvent<HTMLFormElement>) => {
         );
       })}
     </div>
- {/* DATE TYPE */}
-<div>
-  <p className="text-sm mb-1 text-gray-500">Lọc theo</p>
-  <select
-    value={dateFilterType}
-    onChange={(e) => setDateFilterType(e.target.value as any)}
-    className="border rounded-xl px-4 py-2"
-  >
-    <option value="day">Ngày</option>
-    <option value="month">Tháng</option>
-    <option value="year">Năm</option>
-  </select>
-</div>
-<select
-  value={dateFilterType}
+  {/* Filters Row */}
+  <div className="flex flex-wrap items-center gap-4 bg-white p-5 rounded-2xl border border-gray-100 shadow-sm">
+    <div>
+      <p className="text-sm mb-1 text-gray-500 font-medium">Lọc theo</p>
+      <select
+        value={dateFilterType}
+        onChange={(e) => {
+          const value = e.target.value as 'day' | 'month' | 'year';
+          setDateFilterType(value);
+          const now = new Date();
+          if (value === 'day') {
+            setSelectedDate(now.toISOString().split('T')[0]);
+          } else if (value === 'month') {
+            setSelectedDate(`${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`);
+          } else if (value === 'year') {
+            setSelectedDate(String(now.getFullYear()));
+          }
+        }}
+        className="border border-gray-200 rounded-xl px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-500/20 focus:border-red-500 bg-white"
+      >
+        <option value="day">Ngày</option>
+        <option value="month">Tháng</option>
+        <option value="year">Năm</option>
+      </select>
+    </div>
 
-  onChange={(e) => {
+    <div>
+      <p className="text-sm mb-1 text-gray-500 font-medium">
+        {dateFilterType === 'day' ? 'Chọn ngày' : dateFilterType === 'month' ? 'Chọn tháng' : 'Chọn năm'}
+      </p>
+      <Input
+        type={dateFilterType === 'day' ? 'date' : dateFilterType === 'month' ? 'month' : 'number'}
+        value={selectedDate}
+        onChange={(e) => setSelectedDate(e.target.value)}
+        className="w-[180px] rounded-xl border-gray-200 focus-visible:ring-red-500/20 focus-visible:border-red-500"
+        placeholder={dateFilterType === 'year' ? "Ví dụ: 2026" : undefined}
+      />
+    </div>
+  </div>
 
-    const value =
-      e.target.value as
-      'day' | 'month' | 'year';
-
-    setDateFilterType(value);
-
-    const now =
-      new Date();
-
-    // DAY
-    if (value === 'day') {
-
-      setSelectedDate(
-        now
-          .toISOString()
-          .split('T')[0]
-      );
-    }
-
-    // MONTH
-    if (value === 'month') {
-
-      setSelectedDate(
-        `${now.getFullYear()}-${String(
-          now.getMonth() + 1
-        ).padStart(2, '0')}`
-      );
-    }
-
-    // YEAR
-    if (value === 'year') {
-
-      setSelectedDate(
-        String(
-          now.getFullYear()
-        )
-      );
-    }
-  }}
-
-  className="border rounded-xl px-4 py-2"
-></select>
-{/* DATE */}
-<div>
-  <p className="text-sm mb-1 text-gray-500">
-    {dateFilterType === 'day' ? 'Chọn ngày' : dateFilterType === 'month' ? 'Chọn tháng' : 'Chọn năm'}
-  </p>
-  <Input
-    type={dateFilterType === 'day' ? 'date' : dateFilterType === 'month' ? 'month' : 'number'}
-    value={selectedDate}
-    onChange={(e) => setSelectedDate(e.target.value)}
-    className="w-[180px]"
-  />
-</div>
 
 
     {/* Charts */}
@@ -2014,9 +1979,7 @@ const handleSubmitProduct = async (event: React.FormEvent<HTMLFormElement>) => {
                             <Button variant="ghost" size="sm" onClick={() => handleOpenEdit(product)}>
                               <Edit className="size-4" />
                             </Button>
-                            <Button variant="ghost" size="sm" onClick={() => handleDeleteProduct(product)}>
-                              <Trash2 className="size-4 text-red-500" />
-                            </Button>
+                            
                           </div>
                         </div>
                       ))}
@@ -2114,8 +2077,8 @@ const handleSubmitProduct = async (event: React.FormEvent<HTMLFormElement>) => {
 
           {/* Orders Tab */}
           {activeTab === 'orders' && (
-  <StoreOrdersPage />
-)}
+            <StoreOrdersPage />
+          )}
 
           {activeTab === 'customers' && (
             <div className="space-y-6">
@@ -2325,62 +2288,64 @@ const handleSubmitProduct = async (event: React.FormEvent<HTMLFormElement>) => {
                   </Card>
 
                   {/* Chi tiết phí và số đơn - Đã cân chỉnh đẹp */}
-<Card>
-  <CardHeader>
-    <CardTitle>Chi tiết phí và số đơn</CardTitle>
-  </CardHeader>
-  <CardContent>
-    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-      <div className="bg-white border rounded-2xl p-6 text-center hover:shadow-md transition-all">
-        <p className="text-sm text-gray-500 mb-2">Phí cố định</p>
-        <p className="text-3xl font-bold text-gray-800">
-          {formatMoney(sellerReport?.summary?.fixedFee || 0)}
-        </p>
-      </div>
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Chi tiết phí và số đơn</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+                      <div className="bg-white border rounded-2xl p-6 text-center hover:shadow-md transition-all">
+                        <p className="text-sm text-gray-500 mb-2">Phí cố định</p>
+                        <p className="text-3xl font-bold text-gray-800">
+                          {formatMoney(sellerReport?.summary?.fixedFee || 0)}
+                        </p>
+                      </div>
 
-      <div className="bg-white border rounded-2xl p-6 text-center hover:shadow-md transition-all">
-        <p className="text-sm text-gray-500 mb-2">Phí vận chuyển</p>
-        <p className="text-3xl font-bold text-blue-600">
-          {formatMoney(sellerReport?.summary?.shippingFee || 0)}
-        </p>
-      </div>
+                      <div className="bg-white border rounded-2xl p-6 text-center hover:shadow-md transition-all">
+                        <p className="text-sm text-gray-500 mb-2">Phí vận chuyển</p>
+                        <p className="text-3xl font-bold text-blue-600">
+                          {formatMoney(sellerReport?.summary?.shippingFee || 0)}
+                        </p>
+                      </div>
 
-      <div className="bg-white border rounded-2xl p-6 text-center hover:shadow-md transition-all">
-        <p className="text-sm text-gray-500 mb-2">Phí thanh toán</p>
-        <p className="text-3xl font-bold text-orange-600">
-          {formatMoney(sellerReport?.summary?.paymentFee || 0)}
-        </p>
-      </div>
+                      <div className="bg-white border rounded-2xl p-6 text-center hover:shadow-md transition-all">
+                        <p className="text-sm text-gray-500 mb-2">Phí thanh toán</p>
+                        <p className="text-3xl font-bold text-orange-600">
+                          {formatMoney(sellerReport?.summary?.paymentFee || 0)}
+                        </p>
+                      </div>
 
-      <div className="bg-white border rounded-2xl p-6 text-center hover:shadow-md transition-all">
-        <p className="text-sm text-gray-500 mb-2">Phí dịch vụ</p>
-        <p className="text-3xl font-bold text-purple-600">
-          {formatMoney(sellerReport?.summary?.serviceFee || 0)}
-        </p>
-      </div>
+                      <div className="bg-white border rounded-2xl p-6 text-center hover:shadow-md transition-all">
+                        <p className="text-sm text-gray-500 mb-2">Phí dịch vụ</p>
+                        <p className="text-3xl font-bold text-purple-600">
+                          {formatMoney(sellerReport?.summary?.serviceFee || 0)}
+                        </p>
+                      </div>
 
-      {/* Số đơn - chiếm full width dưới cùng */}
-      <div className="lg:col-span-4 bg-gradient-to-r from-red-50 to-rose-50 border border-red-100 rounded-2xl p-6 mt-2">
-        <div className="flex items-center justify-between">
-          <div>
-            <p className="text-sm text-gray-600">Tổng số đơn hàng được tính</p>
-            <p className="text-4xl font-bold text-red-600 mt-1">
-              {sellerReport?.orderCount?.toLocaleString('vi-VN') || '0'}
-            </p>
-          </div>
-          <div className="text-5xl opacity-20">
-            📦
-          </div>
-        </div>
-      </div>
-    </div>
-  </CardContent>
-</Card>
+                      {/* Số đơn - chiếm full width dưới cùng */}
+                      <div className="lg:col-span-4 bg-gradient-to-r from-red-50 to-rose-50 border border-red-100 rounded-2xl p-6 mt-2">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <p className="text-sm text-gray-600">Tổng số đơn hàng được tính</p>
+                            <p className="text-4xl font-bold text-red-600 mt-1">
+                              {sellerReport?.orderCount?.toLocaleString('vi-VN') || '0'}
+                            </p>
+                          </div>
+                          <div className="text-5xl opacity-20">
+                            📦
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
                 </>
               )}
             </div>
           )}
-
+          {activeTab === 'promotions' && (
+            <VoucherManagementPage />
+          )}
           {activeTab === 'settings' && (
             <div className="space-y-6">
               <div>

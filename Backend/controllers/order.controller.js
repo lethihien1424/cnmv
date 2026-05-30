@@ -267,6 +267,8 @@ const createFromCart = async (req, res) => {
       payment_method,
       address_id,
       shipping_service_type = "STANDARD",
+      platform_voucher_id,
+      shop_voucher_id,
     } = req.body;
     if (payment_method === "VNPAY") validateVnpayConfig();
     const orders = await orderService.createOrderFromCart(
@@ -275,6 +277,8 @@ const createFromCart = async (req, res) => {
       payment_method,
       address_id,
       shipping_service_type,
+      platform_voucher_id,
+      shop_voucher_id,
     );
     return buildOrderResponse(res, orders, payment_method);
   } catch (error) {
@@ -294,6 +298,8 @@ const buyNow = async (req, res) => {
       shipping_service_type = "STANDARD",
       size = null,
       color = null,
+      platform_voucher_id,
+      shop_voucher_id,
     } = req.body;
 
     // Đọc product_id linh hoạt (đề phòng FE gửi 'id' hoặc 'productId')
@@ -325,6 +331,8 @@ const buyNow = async (req, res) => {
       shipping_service_type,
       size,
       color,
+      platform_voucher_id,
+      shop_voucher_id,
     );
     return buildOrderResponse(res, orders, payment_method);
   } catch (error) {

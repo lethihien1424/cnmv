@@ -27,7 +27,7 @@ router.get(
 
   verifyToken,
 
-  checkRole(["Business"]),
+  checkRole(["Business", "Customer"]),
 
   checkStoreOwner,
 

@@ -686,7 +686,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { Button } from '../components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
 import { Badge } from '../components/ui/badge';
-import { Shield, Users, Store, Package, LogOut, TrendingUp, FolderOpen, BarChart3 } from 'lucide-react';
+import { Shield, Users, Store, Package, LogOut, TrendingUp, FolderOpen, BarChart3, Ticket  } from 'lucide-react';
 import { useNavigate } from 'react-router';
 import StoreManagementPage from './StoreManagementPage';
 import CategoryManagement from '../components/CategoryManagement';
@@ -697,13 +697,21 @@ import {
   type PlatformIncomePeriod,
   type PlatformIncomeSummary,
 } from '../services/adminDashboardService';
+import AdminVoucherPage from './AdminVoucherPage';
 import UserManagementPage from './UserManagementPage';
 
 export default function AdminDashboard() {
   const { user, logout, token } = useAuth();
   const navigate = useNavigate();
   
-  const [activeTab, setActiveTab] = React.useState<'overview' | 'stores' | 'categories' | 'users' | 'reports'>('overview');
+ const [activeTab, setActiveTab] = React.useState<
+    'overview'
+    | 'stores'
+    | 'categories'
+    | 'users'
+    | 'reports'
+    | 'promotions'
+    >('overview');
   
   const [statsData, setStatsData] = React.useState({
     totalCustomers: 0,
@@ -986,6 +994,22 @@ export default function AdminDashboard() {
               >
                 <BarChart3 className="size-5" />
                 Báo cáo & Thống kê
+              </button>
+              <button
+                onClick={() =>
+                  setActiveTab(
+                    'promotions'
+                  )
+                }
+                className={`px-6 py-3 font-medium transition-colors relative ${
+                  activeTab === 'promotions'
+                    ? 'text-cyan-600'
+                    : 'text-gray-600'
+                }`}>
+                <div className="flex items-center gap-2">
+                  <Ticket className="size-4" />
+                  Quản lý khuyến mãi
+                </div>
               </button>
             </nav>
           </div>
@@ -1388,7 +1412,9 @@ export default function AdminDashboard() {
                   </Card>
                 </div>
               )}
-
+              {activeTab === 'promotions' && (
+                <AdminVoucherPage />
+              )}
             </div>
           </main>
         </div>

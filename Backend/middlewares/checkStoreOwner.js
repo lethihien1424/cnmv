@@ -19,7 +19,8 @@ const checkStoreOwner = async (req, res, next) => {
 
     const store = await Store.findByPk(storeId);
     if (!store) return res.status(404).json({ message: "Store không tồn tại" });
-
+    console.log("JWT USER", req.user);
+console.log("STORE OWNER", store.owner_id);
     if (store.owner_id !== req.user.userId && req.user.role !== "Admin") {
       return res.status(403).json({ message: "Bạn không có quyền quản lý store này" });
     }
