@@ -1,5 +1,8 @@
 # Dependencies
-
+.env
+.env.local
+node_modules
+dist
 # Upload ảnh tạm
 uploads/
 
