@@ -26,6 +26,30 @@ module.exports = (sequelize) => {
         type: DataTypes.BIGINT,
         defaultValue: 0,
       },
+      subtotal_amount: {
+        type: DataTypes.BIGINT,
+        defaultValue: 0,
+      },
+
+      shipping_fee_original: {
+        type: DataTypes.BIGINT,
+        defaultValue: 0,
+      },
+
+      shipping_discount_amount: {
+        type: DataTypes.BIGINT,
+        defaultValue: 0,
+      },
+
+      shop_discount_amount: {
+        type: DataTypes.BIGINT,
+        defaultValue: 0,
+      },
+
+      platform_discount_amount: {
+        type: DataTypes.BIGINT,
+        defaultValue: 0,
+      },
       platform_voucher_id: {
         type: DataTypes.UUID,
         allowNull: true,

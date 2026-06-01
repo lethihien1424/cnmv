@@ -1,5 +1,8 @@
 // Backend/services/order.service.js
 const {
+  buildSepayQrUrl,
+} = require("./sepay.service");
+const {
   Product,
   CartDetail,
   Cart,
@@ -29,6 +32,8 @@ const processOrder = async (
   platformVoucherId = null,
   shopVoucherId = null,
 ) => {
+  paymentMethod = String(paymentMethod || "COD").toUpperCase();
+
   if (!addressId) throw new Error("Vui lòng chọn địa chỉ nhận hàng");
 
   const address = await Address.findByPk(addressId);
@@ -145,35 +150,42 @@ const processOrder = async (
       );
 
     // ==================== XỬ LÝ VOUCHER + FREESHIP ====================
-    let discountAmount = 0;
+    let shopDiscountAmount = 0;
+    let platformDiscountAmount = 0;
     let shippingDiscountPercent = 0;
 
     if (platformVoucherId || shopVoucherId) {
-      const voucherResult = await voucherService.validateVoucher(
-        userId,
-        {
-          platform_voucher_id: platformVoucherId,
-          shop_voucher_id: shopVoucherId,
-          subtotal,
-        }
+      const voucherResult = await voucherService.validateVoucher(userId, {
+        platform_voucher_id: platformVoucherId,
+        shop_voucher_id: shopVoucherId,
+        subtotal,
+      });
+
+      shopDiscountAmount = Number(voucherResult.shop_discount || 0);
+      platformDiscountAmount = Number(voucherResult.platform_discount || 0);
+      shippingDiscountPercent = Number(voucherResult.freeship_discount || 0);
+    }
+
+    const shippingFeeOriginal = Number(shippingResult.shippingFee || 0);
+
+    let shippingDiscountAmount = 0;
+    let shippingFee = shippingFeeOriginal;
+
+    if (shippingDiscountPercent > 0) {
+      shippingDiscountAmount = Math.round(
+        shippingFeeOriginal * (shippingDiscountPercent / 100),
       );
 
-      discountAmount = voucherResult.total_discount || 0;
-      shippingDiscountPercent = voucherResult.freeship_discount || 0;
-
-      console.log(`🔍 Voucher Result: freeship=${shippingDiscountPercent}%, discount=${discountAmount}`);
+      shippingFee = Math.max(0, shippingFeeOriginal - shippingDiscountAmount);
     }
 
-    let shippingFee = shippingResult.shippingFee ?? 0;
+    const discountAmount =
+      shopDiscountAmount + platformDiscountAmount + shippingDiscountAmount;
 
-    // Áp dụng giảm phí ship từ voucher FREESHIP
-    if (shippingDiscountPercent > 0) {
-      const shippingDiscountAmount = Math.round(shippingFee * (shippingDiscountPercent / 100));
-      shippingFee = Math.max(0, shippingFee - shippingDiscountAmount);
-      console.log(`✅ ĐÃ GIẢM PHÍ SHIP ${shippingDiscountPercent}%: -${shippingDiscountAmount}đ → Còn ${shippingFee}đ`);
-    }
-
-    const totalAmount = subtotal + shippingFee - discountAmount;
+    const totalAmount = Math.max(
+      0,
+      subtotal + shippingFeeOriginal - discountAmount,
+    );
     // ==================== KẾT THÚC XỬ LÝ VOUCHER ====================
 
     // Xử lý thanh toán ví
@@ -183,8 +195,10 @@ const processOrder = async (
       });
 
       if (!wallet) throw new Error("Ví không tồn tại");
-      if (Number(wallet.balance) < totalAmount)
+
+      if (Number(wallet.balance) < totalAmount) {
         throw new Error("Số dư ví không đủ");
+      }
 
       wallet.balance = Number(wallet.balance) - totalAmount;
       await wallet.save();
@@ -193,20 +207,29 @@ const processOrder = async (
     const order = await orderRepo.createOrder({
       buyer_id: userId,
       store_id: storeId,
+
+      subtotal_amount: subtotal,
+      shipping_fee_original: shippingFeeOriginal,
+      shipping_discount_amount: shippingDiscountAmount,
+      shop_discount_amount: shopDiscountAmount,
+      platform_discount_amount: platformDiscountAmount,
+
       total_amount: totalAmount,
       shipping_fee: shippingFee,
+      discount_amount: discountAmount,
+
       shipping_provider: "GHN",
       shipping_service_type: serviceType,
       distance_km: shippingResult.distanceKm,
       estimated_delivery_time: shippingResult.estimatedDeliveryTime,
       shipping_address: shippingAddress,
+
       payment_method: paymentMethod,
       platform_voucher_id: platformVoucherId,
       shop_voucher_id: shopVoucherId,
-      discount_amount: discountAmount,
-      payment_status: paymentMethod === "COD" ? "UNPAID" : "PAID",
-      order_status: paymentMethod === "COD" ? "PENDING" : "PICKUP",
 
+      payment_status: paymentMethod === "WALLET" ? "PAID" : "UNPAID",
+      order_status: paymentMethod === "WALLET" ? "PICKUP" : "PENDING",
     });
 
     if (paymentMethod === "WALLET") {
@@ -394,7 +417,153 @@ const refundOrderStock = async (orderId) => {
     await product.save();
   }
 };
+const getOrCreateWallet = async (userId) => {
+  let wallet = await Wallet.findOne({
+    where: { user_id: userId },
+  });
 
+  if (!wallet) {
+    wallet = await Wallet.create({
+      user_id: userId,
+      balance: 0,
+    });
+  }
+
+  return wallet;
+};
+
+const linkWalletBankAccount = async (userId, body) => {
+  const {
+    bank_code,
+    bank_name,
+    bank_account_number,
+    bank_account_holder,
+  } = body;
+
+  if (!bank_code || !bank_name || !bank_account_number || !bank_account_holder) {
+    throw new Error("Vui lòng nhập đầy đủ thông tin tài khoản ngân hàng");
+  }
+
+  const wallet = await getOrCreateWallet(userId);
+
+  wallet.bank_code = bank_code;
+  wallet.bank_name = bank_name;
+  wallet.bank_account_number = bank_account_number;
+  wallet.bank_account_holder = bank_account_holder;
+
+  await wallet.save();
+
+  return wallet;
+};
+
+const createWalletTopup = async (userId, amount) => {
+  amount = Number(amount);
+
+  if (!amount || amount < 10000) {
+    throw new Error("Số tiền nạp tối thiểu là 10.000đ");
+  }
+
+  const wallet = await getOrCreateWallet(userId);
+
+  const transaction = await WalletTransaction.create({
+    wallet_id: wallet.id,
+    type: "TOPUP",
+    amount,
+    status: "PENDING",
+    description: "Nạp tiền vào ví",
+    expires_at: new Date(Date.now() + 15 * 60 * 1000),
+  });
+
+  const transferContent = `TOPUP${transaction.id
+    .replace(/-/g, "")
+    .slice(0, 12)
+    .toUpperCase()}`;
+
+  const qrUrl = buildSepayQrUrl({
+    amount,
+    transferContent,
+  });
+
+  transaction.transfer_content = transferContent;
+  transaction.qr_url = qrUrl;
+
+  await transaction.save();
+
+  return {
+    transaction_id: transaction.id,
+    amount: Number(transaction.amount),
+    status: transaction.status,
+    transfer_content: transaction.transfer_content,
+    qr_url: transaction.qr_url,
+    expires_at: transaction.expires_at,
+
+    receiver_name: process.env.SEPAY_ACCOUNT_NAME || null,
+    receiver_bank_name: process.env.SEPAY_BANK_CODE || null,
+    receiver_account_number: process.env.SEPAY_ACCOUNT_NUMBER || null,
+  };
+};
+
+const getWalletTopupStatus = async (userId, transactionId) => {
+  const wallet = await getOrCreateWallet(userId);
+
+  const transaction = await WalletTransaction.findOne({
+    where: {
+      id: transactionId,
+      wallet_id: wallet.id,
+    },
+  });
+
+  if (!transaction) {
+    throw new Error("Không tìm thấy giao dịch nạp ví");
+  }
+
+  return {
+    transaction_id: transaction.id,
+    amount: Number(transaction.amount),
+    type: transaction.type,
+    status: transaction.status,
+    transfer_content: transaction.transfer_content,
+    qr_url: transaction.qr_url,
+    paid_at: transaction.paid_at,
+    expires_at: transaction.expires_at,
+  };
+};
+
+const createWalletWithdraw = async (userId, amount) => {
+  amount = Number(amount);
+
+  if (!amount || amount < 10000) {
+    throw new Error("Số tiền rút tối thiểu là 10.000đ");
+  }
+
+  const wallet = await getOrCreateWallet(userId);
+
+  if (
+    !wallet.bank_code ||
+    !wallet.bank_name ||
+    !wallet.bank_account_number ||
+    !wallet.bank_account_holder
+  ) {
+    throw new Error("Vui lòng liên kết tài khoản ngân hàng trước khi rút tiền");
+  }
+
+  if (Number(wallet.balance) < amount) {
+    throw new Error("Số dư ví không đủ");
+  }
+
+  wallet.balance = Number(wallet.balance) - amount;
+  await wallet.save();
+
+  const transaction = await WalletTransaction.create({
+    wallet_id: wallet.id,
+    type: "WITHDRAW",
+    amount,
+    status: "PENDING",
+    description: `Yêu cầu rút tiền về ${wallet.bank_name} - ${wallet.bank_account_number}`,
+  });
+
+  return transaction;
+};
 module.exports = {
   createOrderFromCart,
   buyNow,
@@ -405,5 +574,10 @@ module.exports = {
   getOrderById: orderRepo.getOrderById,
   updateOrderStatus: orderRepo.updateOrderStatus,
   deleteOrder: orderRepo.deleteOrder,
-  refundOrderStock, // Đã export hàm hoàn kho để gọi ở Controller
+  refundOrderStock,
+
+  linkWalletBankAccount,
+  createWalletTopup,
+  getWalletTopupStatus,
+  createWalletWithdraw,
 };

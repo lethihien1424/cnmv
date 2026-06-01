@@ -18,6 +18,23 @@ module.exports = (sequelize) => {
         type: DataTypes.BIGINT,
         defaultValue: 0,
       },
+
+      bank_code: {
+        type: DataTypes.STRING(50),
+        allowNull: true,
+      },
+      bank_name: {
+        type: DataTypes.STRING(100),
+        allowNull: true,
+      },
+      bank_account_number: {
+        type: DataTypes.STRING(50),
+        allowNull: true,
+      },
+      bank_account_holder: {
+        type: DataTypes.STRING(100),
+        allowNull: true,
+      },
     },
     {
       tableName: "wallets",
@@ -25,5 +42,6 @@ module.exports = (sequelize) => {
       underscored: true,
     }
   );
+
   return Wallet;
 };

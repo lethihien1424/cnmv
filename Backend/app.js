@@ -1,3 +1,4 @@
+//D:\CNM_new6\CongNgheMoi\Backend\app.js
 require("dotenv").config();
 const path = require("path");
 const express = require("express");
@@ -71,6 +72,9 @@ app.use("/api/orders", orderRoutes);
 app.use("/api/categories", categoryRoutes); //
 app.use("/api/cart", cartRoutes);
 app.use("/api/payment", paymentRoutes);
+app.use("/api/payments", paymentRoutes);
+app.use("/api/sepay", paymentRoutes);
+app.use("/sepay", paymentRoutes);
 app.use("/api/reviews", reviewRoutes);
 app.use("/api/users", userRoutes); // 🔥 THÊM
 app.use("/api/addresses", addressRoutes);

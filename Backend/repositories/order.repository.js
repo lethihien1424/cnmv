@@ -8,6 +8,7 @@ const {
   Wallet,
   WalletTransaction,
   User,
+  Payment,
 } = require("../models");
 
 const createOrder = async (data) => Order.create(data);
@@ -43,6 +44,7 @@ const getOrdersByUser = async (userId) => {
         as: "items",
         include: [{ model: Product, as: "product", paranoid: false }],
       },
+      { model: Payment, as: "payments" },
     ],
     order: [["created_at", "DESC"]],
   });
@@ -60,6 +62,7 @@ const getOrdersByStore = async (storeId) => {
         as: "items",
         include: [{ model: Product, as: "product", paranoid: false }],
       },
+      { model: Payment, as: "payments" },
     ],
     order: [["created_at", "DESC"]],
   });
@@ -76,6 +79,7 @@ const getOrderById = async (id) => {
         as: "items",
         include: [{ model: Product, as: "product", paranoid: false }],
       },
+      { model: Payment, as: "payments" },
     ],
   });
 
@@ -116,7 +120,7 @@ const updateOrderStatus = async (orderId, status) => {
   return order.save();
 };
 
-// ─── updatePaymentStatus (dùng cho VNPAY callback) ───────────────────────────
+// ─── updatePaymentStatus (dùng cho callback thanh toán) ──────────────────────
 const updatePaymentStatus = async (orderId, paymentStatus, orderStatus) => {
   const order = await Order.findByPk(orderId);
   if (!order) throw new Error("Order not found");
@@ -129,7 +133,7 @@ const updatePaymentStatus = async (orderId, paymentStatus, orderStatus) => {
 // Chỉ cho hủy khi PENDING hoặc PICKUP
 // cancelledBy: 'CUSTOMER' | 'STORE'
 // cancelReason: mã lý do (string)
-// Nếu VNPAY + PAID → hoàn tiền vào ví → REFUNDED
+// Nếu SEPAY/WALLET + PAID → hoàn tiền vào ví → REFUNDED
 // Nếu COD            → CANCELLED
 const cancelOrder = async (orderId, cancelledBy, cancelReason) => {
   const order = await Order.findByPk(orderId);
@@ -141,7 +145,7 @@ const cancelOrder = async (orderId, cancelledBy, cancelReason) => {
   }
 
   const isRefund =
-    (order.payment_method === "VNPAY" || order.payment_method === "WALLET") &&
+    (order.payment_method === "SEPAY" || order.payment_method === "WALLET") &&
     order.payment_status === "PAID";
 
   if (isRefund) {
@@ -165,8 +169,21 @@ const cancelOrder = async (orderId, cancelledBy, cancelReason) => {
 
     order.order_status = "REFUNDED";
     order.payment_status = "REFUNDED";
+
+    await Payment.update(
+      { status: "REFUNDED" },
+      { where: { order_id: order.id, payment_method: "SEPAY" } },
+    );
   } else {
     order.order_status = "CANCELLED";
+
+    if (order.payment_method === "SEPAY" && order.payment_status === "UNPAID") {
+      order.payment_status = "FAILED";
+      await Payment.update(
+        { status: "FAILED" },
+        { where: { order_id: order.id, status: "PENDING" } },
+      );
+    }
   }
 
   order.cancelled_by_role = cancelledBy;
@@ -274,6 +291,7 @@ const getOrdersByUserFiltered = async (
         as: "items",
         include: [{ model: Product, as: "product", paranoid: false }],
       },
+      { model: Payment, as: "payments" },
     ],
     order: [["created_at", "DESC"]],
     limit,

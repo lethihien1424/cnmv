@@ -33,6 +33,23 @@ module.exports = (sequelize) => {
         type: DataTypes.TEXT,
         allowNull: true,
       },
+
+      transfer_content: {
+        type: DataTypes.STRING(255),
+        allowNull: true,
+      },
+      qr_url: {
+        type: DataTypes.TEXT,
+        allowNull: true,
+      },
+      expires_at: {
+        type: DataTypes.DATE,
+        allowNull: true,
+      },
+      paid_at: {
+        type: DataTypes.DATE,
+        allowNull: true,
+      },
     },
     {
       tableName: "wallet_transactions",
@@ -40,5 +57,6 @@ module.exports = (sequelize) => {
       underscored: true,
     }
   );
+
   return WalletTransaction;
 };

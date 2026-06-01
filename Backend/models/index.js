@@ -7,6 +7,7 @@ const createNotificationModel = require("./notification.model");
 const createProductModel = require("./product.model");
 const createOrderModel = require("./order.model");
 const createOrderDetailModel = require("./orderDetail.model");
+const createPaymentModel = require("./payment.model");
 const createCartModel = require("./cart.model");
 const createCartDetailModel = require("./cartDetail.model");
 const createAddressModel = require("./address.model");
@@ -49,6 +50,7 @@ const Notification = createNotificationModel(sequelize);
 const Product = createProductModel(sequelize);
 const Order = createOrderModel(sequelize);
 const OrderDetail = createOrderDetailModel(sequelize);
+const Payment = createPaymentModel(sequelize);
 const Cart = createCartModel(sequelize);
 const CartDetail = createCartDetailModel(sequelize);
 const Address = createAddressModel(sequelize);
@@ -83,6 +85,11 @@ Order.hasMany(OrderDetail, { foreignKey: "order_id", as: "items" });
 OrderDetail.belongsTo(Order, { foreignKey: "order_id", as: "order" });
 Product.hasMany(OrderDetail, { foreignKey: "product_id", as: "order_details" });
 OrderDetail.belongsTo(Product, { foreignKey: "product_id", as: "product" });
+
+Order.hasMany(Payment, { foreignKey: "order_id", as: "payments" });
+Payment.belongsTo(Order, { foreignKey: "order_id", as: "order" });
+User.hasMany(Payment, { foreignKey: "user_id", as: "payments" });
+Payment.belongsTo(User, { foreignKey: "user_id", as: "user" });
 
 User.hasOne(Cart, { foreignKey: "user_id", as: "cart" });
 Cart.belongsTo(User, { foreignKey: "user_id", as: "user" });
@@ -135,6 +142,7 @@ module.exports = {
   Notification,
   Order,
   OrderDetail,
+  Payment,
   Cart,
   CartDetail,
   Review,

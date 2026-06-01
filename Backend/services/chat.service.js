@@ -63,7 +63,7 @@ Bạn thân thiện, chuyên nghiệp, luôn xưng "mình" và gọi khách là 
 - Người dùng có quyền xem, sửa, xóa thông tin cá nhân bất kỳ lúc nào.
 
 5. QUY TRÌNH ĐẶT HÀNG & THANH TOÁN:
-- Thanh toán: COD (trả khi nhận hàng), VNPAY, Ví điện tử ShopHub.
+- Thanh toán: COD (trả khi nhận hàng), Sepay, Ví điện tử ShopHub.
 - Đơn hàng PENDING → PICKUP → SHIPPING → DELIVERED.
 - Khách có thể hủy đơn khi trạng thái còn PENDING hoặc PICKUP.
 

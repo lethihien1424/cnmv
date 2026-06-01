@@ -29,14 +29,35 @@ type Order = {
   payment_status: 'UNPAID' | 'PAID' | 'FAILED' | 'REFUNDED';
   payment_method: string;
   total_amount: number;
-  shipping_fee: number;
-  distance_km?: number;
-  estimated_delivery_time?: string;
+shipping_fee: number;
+
+subtotal_amount?: number;
+shipping_fee_original?: number;
+shipping_discount_amount?: number;
+shop_discount_amount?: number;
+platform_discount_amount?: number;
+discount_amount?: number;
+
+distance_km?: number;
+estimated_delivery_time?: string;
+
+updatedAt?: string;
+updated_at?: string;
+
+payments?: {
+  id: string;
+  amount: number;
+  status: string;
+  paid_at?: string | null;
+  transaction_id?: string | null;
+  payment_method?: string;
+}[];
   shipping_address?: string;
   createdAt?: string;
   created_at?: string;
   cancel_reason?: string | null;
   cancelled_by?: string | null;
+  cancelled_by_role?: string | null;
   cancelled_at?: string | null;
   items: OrderDetail[];
   is_reviewed?: boolean;
@@ -80,6 +101,26 @@ const STATUS_MAP: Record<string, { label: string; cls: string; dot: string }> = 
   DELIVERED: { label: 'Đã giao',      cls: 'bg-green-100 text-green-700 border-green-200',   dot: 'bg-green-400' },
   CANCELLED: { label: 'Đã hủy',       cls: 'bg-red-100 text-red-600 border-red-200',         dot: 'bg-red-400' },
   REFUNDED:  { label: 'Hoàn tiền',    cls: 'bg-purple-100 text-purple-700 border-purple-200',dot: 'bg-purple-400' },
+};
+
+const PAYMENT_METHOD_LABEL: Record<string, string> = {
+  COD: 'Tiền mặt',
+  SEPAY: 'Sepay QR',
+  WALLET: 'Ví ShopHub',
+};
+
+const PAYMENT_STATUS_TEXT: Record<string, string> = {
+  PAID: '✓ Đã thanh toán',
+  REFUNDED: '↩ Đã hoàn tiền',
+  FAILED: '✗ Thanh toán thất bại',
+  UNPAID: '⏳ Chưa thanh toán',
+};
+
+const paymentStatusClass = (status: string) => {
+  if (status === 'PAID') return 'text-green-600';
+  if (status === 'REFUNDED') return 'text-purple-600';
+  if (status === 'FAILED') return 'text-red-600';
+  return 'text-amber-600';
 };
 
 const CANCEL_REASON_MAP: Record<string, string> = {
@@ -148,11 +189,11 @@ function OrderTimeline({ status }: { status: string }) {
 function CancelModal({
   onClose,
   onConfirm,
-  isVnpay,
+  isRefundableOnline,
 }: {
   onClose: () => void;
   onConfirm: (reason: string) => Promise<void>;
-  isVnpay: boolean;
+  isRefundableOnline: boolean;
 }) {
   const [selected, setSelected] = useState('');
   const [loading, setLoading] = useState(false);
@@ -188,12 +229,12 @@ function CancelModal({
               </svg>
             </button>
           </div>
-          {isVnpay && (
+          {isRefundableOnline && (
             <div className="mt-2 flex items-start gap-2 bg-purple-50 rounded-lg p-2.5 text-xs text-purple-700">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="flex-shrink-0 mt-0.5">
                 <circle cx="12" cy="12" r="10" /><line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" />
               </svg>
-              Đơn thanh toán VNPAY — tiền sẽ được hoàn vào Ví của bạn sau khi hủy.
+              Đơn đã thanh toán online hoặc bằng ví — tiền sẽ được hoàn vào Ví của bạn sau khi hủy.
             </div>
           )}
         </div>
@@ -284,10 +325,31 @@ export default function OrderDetailPage() {
   };
 
   const canCancel = order?.order_status === 'PENDING' || order?.order_status === 'PICKUP';
-  const isVnpay = order?.payment_method === 'VNPAY' && order?.payment_status === 'PAID';
+  const isRefundableOnline =
+    !!order &&
+    ['SEPAY', 'WALLET'].includes(String(order.payment_method || '').toUpperCase()) &&
+    order.payment_status === 'PAID';
 
   const statusInfo = order ? (STATUS_MAP[order.order_status] ?? { label: order.order_status, cls: 'bg-gray-100 text-gray-600', dot: 'bg-gray-400' }) : null;
+  const latestPayment = order?.payments?.[0];
 
+const paymentMethod = String(order?.payment_method || '').toUpperCase();
+
+const shouldShowPaidTime =
+  ['SEPAY', 'WALLET'].includes(paymentMethod) &&
+  order?.payment_status === 'PAID';
+
+const paidTime =
+  latestPayment?.paid_at ||
+  (shouldShowPaidTime ? order?.updatedAt || order?.updated_at : null);
+
+const subtotal = Number(order?.subtotal_amount ?? 0);
+const shippingOriginal = Number(order?.shipping_fee_original ?? order?.shipping_fee ?? 0);
+const shippingFinal = Number(order?.shipping_fee ?? 0);
+const shopDiscount = Number(order?.shop_discount_amount ?? 0);
+const platformDiscount = Number(order?.platform_discount_amount ?? 0);
+const shippingDiscount = Number(order?.shipping_discount_amount ?? 0);
+const totalDiscount = Number(order?.discount_amount ?? shopDiscount + platformDiscount + shippingDiscount);
   return (
     <div className="min-h-screen bg-gray-50">
       <StoreHeader
@@ -296,7 +358,7 @@ export default function OrderDetailPage() {
         onSearchSubmit={() => navigate(searchValue.trim() ? `/search?q=${encodeURIComponent(searchValue)}` : '/search')}
       />
 
-      <main className="mx-auto w-full max-w-3xl px-4 py-6 space-y-4">
+      <main className="mx-auto w-full max-w-5xl px-5 sm:px-8 lg:px-10 py-8 space-y-6">
         {/* Back button + title */}
         <div className="flex items-center gap-3">
           <button
@@ -364,7 +426,7 @@ export default function OrderDetailPage() {
         <span className="font-medium">
                     Người hủy:
                     </span>{" "}
-                    {order.cancelled_by === 'STORE'
+                    {(order.cancelled_by_role || order.cancelled_by) === 'STORE'
                     ? 'Shop'
                     : 'Khách hàng'}
                 </p>
@@ -441,48 +503,146 @@ export default function OrderDetailPage() {
             </div>
 
             {/* Shipping + Payment info */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
-                <p className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" /><circle cx="12" cy="10" r="3" />
-                  </svg>
+            <div className="grid grid-cols-1 lg:grid-cols-5 gap-5">
+              {/* Shipping */}
+              <div className="lg:col-span-2 bg-white rounded-3xl border border-gray-100 shadow-[0_12px_40px_rgba(15,23,42,0.06)] p-6 transition-all duration-300 hover:-translate-y-0.5 hover:shadow-[0_18px_50px_rgba(15,23,42,0.09)]">
+                <p className="text-sm font-bold text-gray-800 mb-4 flex items-center gap-2">
+                  <span className="w-9 h-9 rounded-2xl bg-cyan-50 text-cyan-600 flex items-center justify-center">
+                    <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
+                      <circle cx="12" cy="10" r="3" />
+                    </svg>
+                  </span>
                   Địa chỉ nhận hàng
                 </p>
-                <p className="text-sm text-gray-600 leading-relaxed">{order.shipping_address ?? '—'}</p>
-                {order.distance_km && (
-                  <p className="text-xs text-gray-400 mt-2">Khoảng cách: {order.distance_km} km</p>
-                )}
+
+                <p className="text-sm text-gray-600 leading-7">
+                  {order.shipping_address ?? '—'}
+                </p>
+
                 {order.estimated_delivery_time && (
-                  <p className="text-xs text-gray-400">Dự kiến giao: {order.estimated_delivery_time}</p>
+                  <div className="mt-4 rounded-2xl bg-gray-50 border border-gray-100 px-4 py-3">
+                    <p className="text-xs text-gray-400">Dự kiến giao</p>
+                    <p className="text-sm font-semibold text-gray-800">
+                      {order.estimated_delivery_time}
+                    </p>
+                  </div>
                 )}
               </div>
 
-              <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
-                <p className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <rect x="1" y="4" width="22" height="16" rx="2" ry="2" /><line x1="1" y1="10" x2="23" y2="10" />
-                  </svg>
-                  Thanh toán
-                </p>
-                <div className="space-y-2 text-sm">
-                  <div className="flex justify-between">
+              {/* Payment */}
+              <div className="lg:col-span-3 bg-white rounded-3xl border border-gray-100 shadow-[0_12px_40px_rgba(15,23,42,0.06)] p-6 transition-all duration-300 hover:-translate-y-0.5 hover:shadow-[0_18px_50px_rgba(15,23,42,0.09)]">
+                <div className="flex items-center justify-between mb-5">
+                  <p className="text-sm font-bold text-gray-800 flex items-center gap-2">
+                    <span className="w-9 h-9 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center">
+                      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <rect x="1" y="4" width="22" height="16" rx="2" ry="2" />
+                        <line x1="1" y1="10" x2="23" y2="10" />
+                      </svg>
+                    </span>
+                    Thanh toán
+                  </p>
+
+                  <span className={`text-xs font-bold ${paymentStatusClass(order.payment_status)}`}>
+                    {PAYMENT_STATUS_TEXT[order.payment_status] || order.payment_status}
+                  </span>
+                </div>
+
+                <div className="space-y-3 text-sm">
+                  <div className="flex justify-between gap-4">
                     <span className="text-gray-500">Phương thức</span>
-                    <span className="font-semibold text-gray-800">{order.payment_method}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-gray-500">Trạng thái</span>
-                    <span className={`font-semibold ${order.payment_status === 'PAID' ? 'text-green-600' : order.payment_status === 'REFUNDED' ? 'text-purple-600' : 'text-amber-600'}`}>
-                      {order.payment_status === 'PAID' ? '✓ Đã thanh toán' : order.payment_status === 'REFUNDED' ? '↩ Đã hoàn tiền' : '⏳ Chưa thanh toán'}
+                    <span className="font-semibold text-gray-900 text-right">
+                      {PAYMENT_METHOD_LABEL[paymentMethod] || order.payment_method}
                     </span>
                   </div>
-                  <div className="flex justify-between">
-                    <span className="text-gray-500">Phí vận chuyển</span>
-                    <span className="font-medium text-gray-700">{fmt(Number(order.shipping_fee))}</span>
+
+                  <div className="flex justify-between gap-4">
+                    <span className="text-gray-500">Thời gian đặt hàng</span>
+                    <span className="font-medium text-gray-800 text-right">
+                      {fmtDate(order.createdAt || order.created_at)}
+                    </span>
                   </div>
-                  <div className="border-t border-gray-100 pt-2 flex justify-between">
-                    <span className="font-semibold text-gray-800">Tổng cộng</span>
-                    <span className="font-extrabold text-red-500 text-base">{fmt(Number(order.total_amount))}</span>
+
+                  <div className="flex justify-between gap-4">
+                    <span className="text-gray-500">Cập nhật mới nhất</span>
+                    <span className="font-medium text-gray-800 text-right">
+                      {fmtDate(order.updatedAt || order.updated_at)}
+                    </span>
+                  </div>
+
+                  {shouldShowPaidTime && (
+                    <div className="flex justify-between gap-4">
+                      <span className="text-gray-500">Thời gian thanh toán</span>
+                      <span className="font-medium text-emerald-600 text-right">
+                        {fmtDate(paidTime)}
+                      </span>
+                    </div>
+                  )}
+
+                  <div className="my-4 border-t border-gray-100" />
+
+                  <div className="flex justify-between gap-4">
+                    <span className="text-gray-500">Giá gốc</span>
+                    <span className="font-semibold text-gray-800">
+                      {fmt(subtotal)}
+                    </span>
+                  </div>
+
+                  <div className="flex justify-between gap-4">
+                    <span className="text-gray-500">Phí vận chuyển gốc</span>
+                    <span className="font-semibold text-gray-800">
+                      {fmt(shippingOriginal)}
+                    </span>
+                  </div>
+
+                  <div className="flex justify-between gap-4">
+                    <span className="text-gray-500">Phí ship sau giảm</span>
+                    <span className="font-semibold text-gray-800">
+                      {fmt(shippingFinal)}
+                    </span>
+                  </div>
+
+                  {shopDiscount > 0 && (
+                    <div className="flex justify-between gap-4">
+                      <span className="text-gray-500">Giảm voucher shop</span>
+                      <span className="font-semibold text-rose-500">
+                        -{fmt(shopDiscount)}
+                      </span>
+                    </div>
+                  )}
+
+                  {platformDiscount > 0 && (
+                    <div className="flex justify-between gap-4">
+                      <span className="text-gray-500">Giảm voucher hệ thống</span>
+                      <span className="font-semibold text-rose-500">
+                        -{fmt(platformDiscount)}
+                      </span>
+                    </div>
+                  )}
+
+                  {shippingDiscount > 0 && (
+                    <div className="flex justify-between gap-4">
+                      <span className="text-gray-500">Giảm phí vận chuyển</span>
+                      <span className="font-semibold text-rose-500">
+                        -{fmt(shippingDiscount)}
+                      </span>
+                    </div>
+                  )}
+
+                  {totalDiscount > 0 && (
+                    <div className="flex justify-between gap-4">
+                      <span className="text-gray-500">Tổng giảm</span>
+                      <span className="font-semibold text-rose-500">
+                        -{fmt(totalDiscount)}
+                      </span>
+                    </div>
+                  )}
+
+                  <div className="mt-5 rounded-2xl bg-gradient-to-r from-red-50 to-orange-50 border border-red-100 px-4 py-4 flex justify-between items-center">
+                    <span className="font-bold text-gray-900">Tổng thanh toán</span>
+                    <span className="font-black text-red-500 text-xl">
+                      {fmt(Number(order.total_amount))}
+                    </span>
                   </div>
                 </div>
               </div>
@@ -525,7 +685,7 @@ export default function OrderDetailPage() {
         <CancelModal
           onClose={() => setShowCancelModal(false)}
           onConfirm={handleCancel}
-          isVnpay={!!isVnpay}
+          isRefundableOnline={isRefundableOnline}
         />
       )}
 

@@ -267,7 +267,7 @@ const visibleProducts = React.useMemo(() => {
   });
 }, [activeCategoryId, activeSearchQuery, products]);
   return (
-    <div className="min-h-screen bg-white">
+    <div className="min-h-screen bg-white text-slate-900 antialiased">
       <StoreHeader
         searchValue={searchValue}
         onSearchValueChange={setSearchValue}
@@ -285,143 +285,192 @@ const visibleProducts = React.useMemo(() => {
       />
 
       {/* Hero Section */}
-      <section className="bg-gray-50 py-8">
-        <div className="container mx-auto px-4">
-          <div className="grid lg:grid-cols-12 gap-6">
-            <div className="lg:col-span-3 space-y-6">
-              <Badge className="mb-4 bg-cyan-500 text-white px-4 py-1 rounded-full">
-                Ưu đãi đặc biệt
-              </Badge>
-              <h1 className="text-4xl leading-tight">
-                Mua sắm thông minh
-                <br />
-                <span className="text-transparent bg-clip-text bg-gradient-to-r from-cyan-500 to-blue-600">
-                  Giá cả hợp lý
-                </span>
-              </h1>
-              <p className="text-gray-600 text-lg leading-relaxed">
-                Khám phá hàng ngàn sản phẩm chất lượng từ các cửa hàng uy tín. 
-                Giao hàng nhanh chóng, thanh toán an toàn.
-              </p>
-              <div className="flex gap-3">
-                <Button size="lg" className="bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-600 hover:to-blue-700 text-white px-6">
-                  Khám phá ngay
-                  <ArrowRight className="size-4 ml-2" />
-                </Button>
-                <Button size="lg" variant="outline" className="px-6">
-                  Xem khuyến mãi
-                </Button>
-              </div>
-              <div className="flex gap-6 pt-4">
-                <div>
-                  <div className="text-2xl mb-1">1000+</div>
-                  <p className="text-gray-600 text-sm">Cửa hàng</p>
-                </div>
-                <div>
-                  <div className="text-2xl mb-1">50K+</div>
-                  <p className="text-gray-600 text-sm">Sản phẩm</p>
-                </div>
-                <div>
-                  <div className="text-2xl mb-1">100K+</div>
-                  <p className="text-gray-600 text-sm">Khách hàng</p>
-                </div>
-              </div>
-            </div>
+<section className="bg-gray-50 py-8">
+  <div className="mx-auto w-full max-w-screen-2xl px-4">
+    <div className="overflow-hidden rounded-[32px] border border-slate-100 bg-white shadow-[0_18px_60px_rgba(15,23,42,0.08)]">
+      <div className="grid lg:grid-cols-12 gap-8 items-center p-7 lg:p-10">
+        <div className="lg:col-span-4 space-y-6">
+          <Badge className="bg-cyan-500 text-white px-4 py-1 rounded-full">
+            Ưu đãi đặc biệt
+          </Badge>
 
-            <div className="lg:col-span-9">
-              <HeroCarousel />
-              <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5 lg:gap-4">
-                {quickLinks.map((link, index) => (
-                  <Card
-                    key={index}
-                    onClick={()=>{
-                      if(
-                        link.label ===
-                        "Mã Giảm Giá"
-                      ){
-                        setShowVoucherModal(
-                          true
-                        );
-                      }
-                    }}
-                    className="
-                      hover:shadow-md
-                      transition-all
-                      cursor-pointer
-                      group">
-                    <CardContent className="p-4 text-center">
-                      <div className={`size-12 ${link.bgColor} rounded-lg flex items-center justify-center mx-auto mb-3 group-hover:scale-110 transition-transform`}>
-                        <link.icon className={`size-6 ${link.color}`} />
-                      </div>
-                      <p className="text-sm font-medium leading-tight">{link.label}</p>
-                    </CardContent>
-                  </Card>
-                ))}
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-      
-      {/* THÊM GIAO DIỆN ĐẾM NGƯỢC Ở PHẦN FLASH SALE NÀY */}
-      <section className="py-16 bg-gray-50">
-        <div className="container mx-auto px-4">
-          <div className="flex flex-col sm:flex-row sm:items-end justify-between mb-8 gap-4">
-            <div>
-              <div className="flex items-center gap-4 mb-2">
-                <h2 className="text-3xl text-cyan-600 font-bold flex items-center uppercase tracking-wide">
-                  F<Zap className="size-8 text-cyan-500 fill-cyan-500 mx-0.5" />ASH SALE
-                </h2>
-                {/* Countdown Timer */}
-                <div className="flex items-center gap-1.5 text-white font-mono text-xl font-bold bg-slate-900 px-3 py-1.5 rounded-lg shadow-md border border-slate-700">
-                  <div className="bg-slate-800 px-2 py-1 rounded w-10 text-center tracking-widest">{String(timeLeft.hours).padStart(2, '0')}</div>
-                  <span className="text-slate-400 -mt-1">:</span>
-                  <div className="bg-slate-800 px-2 py-1 rounded w-10 text-center tracking-widest">{String(timeLeft.minutes).padStart(2, '0')}</div>
-                  <span className="text-slate-400 -mt-1">:</span>
-                  <div className="bg-slate-800 px-2 py-1 rounded w-10 text-center tracking-widest text-cyan-400">{String(timeLeft.seconds).padStart(2, '0')}</div>
-                </div>
-              </div>
-              <p className="text-gray-600 font-medium">Săn deal giới hạn theo khung giờ</p>
-            </div>
-            <Button variant="outline" onClick={() => navigate('/search')} className="border-cyan-200 text-cyan-700 hover:bg-cyan-50 shrink-0">
-              Xem tất cả
+          <h1 className="text-4xl leading-tight font-bold text-slate-900">
+            Mua sắm thông minh
+            <br />
+            <span className="text-transparent bg-clip-text bg-gradient-to-r from-cyan-500 to-blue-600">
+              Giá cả hợp lý
+            </span>
+          </h1>
+
+          <p className="text-gray-600 text-base leading-relaxed max-w-md">
+            Khám phá hàng ngàn sản phẩm chất lượng từ các cửa hàng uy tín.
+            Giao hàng nhanh chóng, thanh toán an toàn.
+          </p>
+
+          <div className="flex gap-3">
+            <Button
+              size="lg"
+              className="bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-600 hover:to-blue-700 text-white px-6 rounded-xl transition-all duration-300 hover:-translate-y-0.5"
+            >
+              Khám phá ngay
               <ArrowRight className="size-4 ml-2" />
             </Button>
+
+            <Button
+              size="lg"
+              variant="outline"
+              className="px-6 rounded-xl transition-all duration-300 hover:-translate-y-0.5"
+            >
+              Xem khuyến mãi
+            </Button>
           </div>
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
-            {productsLoading ? (
-              <p className="text-sm text-gray-500">Đang tải flash sale...</p>
-            ) : flashSaleItems.map((item) => (
-              <Card
-                key={item.id}
-                className="hover:shadow-lg transition-shadow cursor-pointer overflow-hidden group"
-                onClick={() => navigate(`/product/${item.id}`)}
+
+          <div className="grid grid-cols-3 gap-3 pt-4">
+            {[
+              { value: '1000+', label: 'Cửa hàng' },
+              { value: '50K+', label: 'Sản phẩm' },
+              { value: '100K+', label: 'Khách hàng' },
+            ].map((item) => (
+              <div
+                key={item.label}
+                className="rounded-2xl bg-white border border-slate-100 px-4 py-3 shadow-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-md"
               >
-                <div className="bg-gray-100 relative">
-                  {/* Tag giảm giá */}
-                  <div className="absolute top-2 right-2 bg-red-500 text-white text-[10px] font-bold px-2 py-1 rounded-full z-10 shadow">
-                    GIẢM SỐC
-                  </div>
-                  <ImageWithFallback src={item.image} alt={item.name} className="h-36 w-full object-cover group-hover:scale-105 transition-transform duration-300" />
+                <div className="text-xl font-bold text-slate-900">
+                  {item.value}
                 </div>
-                <CardContent className="p-4">
-                  <h3 className="font-medium mb-2 line-clamp-2 min-h-10 group-hover:text-cyan-600 transition-colors">{item.name}</h3>
-                  <p className="text-2xl font-extrabold text-cyan-600 tracking-tight">{formatPrice(item.price)}</p>
-                  
-                  <div className="relative h-4 w-full rounded-full bg-cyan-100 overflow-hidden mt-1">
-                    <div className="absolute top-0 left-0 h-full rounded-full bg-gradient-to-r from-cyan-500 to-blue-500" style={{ width: `${item.soldPercent}%` }} />
-                    <span className="absolute inset-0 flex items-center justify-center text-[9px] font-bold text-white uppercase drop-shadow-md z-10">Đã bán {item.soldPercent}%</span>
-                  </div>
-                </CardContent>
-              </Card>
+                <p className="text-gray-500 text-xs">{item.label}</p>
+              </div>
             ))}
           </div>
         </div>
-      </section>
+
+        <div className="lg:col-span-8">
+          <div className="overflow-hidden rounded-[28px] shadow-[0_14px_45px_rgba(15,23,42,0.10)] transition-all duration-500 ease-out hover:scale-[1.01] hover:shadow-[0_22px_70px_rgba(15,23,42,0.16)]">
+            <HeroCarousel />
+          </div>
+        </div>
+      </div>
+    </div>
+
+    {/* Quick links nằm ngoài banner grid để không bị bóp */}
+    <div className="mt-6 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-5">
+      {quickLinks.map((link, index) => (
+        <Card
+          key={index}
+          onClick={() => {
+            if (link.label === 'Mã Giảm Giá') {
+              setShowVoucherModal(true);
+            }
+          }}
+          className="group cursor-pointer overflow-hidden rounded-3xl border border-slate-100 bg-white shadow-[0_10px_35px_rgba(15,23,42,0.06)] transition-all duration-500 ease-out hover:-translate-y-2 hover:scale-[1.015] hover:shadow-[0_24px_70px_rgba(15,23,42,0.14)]"
+        >
+          <CardContent className="h-[96px] flex items-center justify-center gap-3 text-center p-4">
+            <div className={`size-12 ${link.bgColor} rounded-2xl flex items-center justify-center transition-all duration-500 ease-out group-hover:scale-110 group-hover:rotate-3`}>
+              <link.icon className={`size-6 ${link.color}`} />
+            </div>
+
+            <p className="text-sm font-bold leading-tight text-slate-800">
+              {link.label}
+            </p>
+          </CardContent>
+        </Card>
+      ))}
+    </div>
+  </div>
+</section>
+
+{/* Flash Sale */}
+<section className="py-6 bg-gray-50">
+  <div className="mx-auto w-full max-w-screen-2xl px-4">
+    <div className="rounded-[28px] border border-slate-100 bg-white p-6 shadow-[0_10px_35px_rgba(15,23,42,0.06)]">
+      <div className="flex flex-col sm:flex-row sm:items-end justify-between mb-8 gap-4">
+        <div>
+          <div className="flex items-center gap-4 mb-2">
+            <h2 className="text-3xl text-cyan-600 font-bold flex items-center uppercase tracking-wide">
+              F<Zap className="size-8 text-cyan-500 fill-cyan-500 mx-0.5" />ASH SALE
+            </h2>
+
+            <div className="flex items-center gap-1.5 text-white font-mono text-xl font-bold bg-slate-900 px-3 py-1.5 rounded-xl shadow-md border border-slate-700">
+              <div className="bg-slate-800 px-2 py-1 rounded w-10 text-center">
+                {String(timeLeft.hours).padStart(2, '0')}
+              </div>
+              <span className="text-slate-400 -mt-1">:</span>
+              <div className="bg-slate-800 px-2 py-1 rounded w-10 text-center">
+                {String(timeLeft.minutes).padStart(2, '0')}
+              </div>
+              <span className="text-slate-400 -mt-1">:</span>
+              <div className="bg-slate-800 px-2 py-1 rounded w-10 text-center text-cyan-400">
+                {String(timeLeft.seconds).padStart(2, '0')}
+              </div>
+            </div>
+          </div>
+
+          <p className="text-gray-600 font-medium">
+            Săn deal giới hạn theo khung giờ
+          </p>
+        </div>
+
+        <Button
+          variant="outline"
+          onClick={() => navigate('/search')}
+          className="border-cyan-200 text-cyan-700 hover:bg-cyan-50 shrink-0 rounded-xl transition-all duration-300 hover:-translate-y-0.5"
+        >
+          Xem tất cả
+          <ArrowRight className="size-4 ml-2" />
+        </Button>
+      </div>
+
+     <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+        {productsLoading ? (
+          <p className="text-sm text-gray-500">Đang tải flash sale...</p>
+        ) : flashSaleItems.map((item) => (
+          <Card
+            key={item.id}
+            className="group cursor-pointer overflow-hidden rounded-3xl border border-slate-100 bg-white shadow-sm transition-all duration-500 ease-out hover:-translate-y-2 hover:scale-[1.015] hover:shadow-[0_24px_70px_rgba(15,23,42,0.16)]"
+            onClick={() => navigate(`/product/${item.id}`)}
+          >
+            <div className="bg-gray-100 relative overflow-hidden">
+              <div className="absolute top-2 right-2 bg-red-500 text-white text-[10px] font-bold px-2 py-1 rounded-full z-10 shadow">
+                GIẢM SỐC
+              </div>
+
+              <ImageWithFallback
+                src={item.image}
+                alt={item.name}
+                className="h-40 w-full object-cover transition-transform duration-500 ease-out group-hover:scale-110"
+              />
+            </div>
+
+            <CardContent className="p-4">
+              <h3 className="font-medium mb-2 line-clamp-2 min-h-10 group-hover:text-cyan-600 transition-colors">
+                {item.name}
+              </h3>
+
+              <p className="text-2xl font-extrabold text-cyan-600 tracking-tight">
+                {formatPrice(item.price)}
+              </p>
+
+              <div className="relative h-4 w-full rounded-full bg-cyan-100 overflow-hidden mt-2">
+                <div
+                  className="absolute top-0 left-0 h-full rounded-full bg-gradient-to-r from-cyan-500 to-blue-500"
+                  style={{ width: `${item.soldPercent}%` }}
+                />
+                <span className="absolute inset-0 flex items-center justify-center text-[9px] font-bold text-white uppercase drop-shadow-md z-10">
+                  Đã bán {item.soldPercent}%
+                </span>
+              </div>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+    </div>
+  </div>
+</section>
 
       {/* Featured Products */}
-      <section id="homepage-products" className="py-16">
-        <div className="container mx-auto px-4">
+      <section id="homepage-products" className="py-6 bg-gray-50">
+        <div className="mx-auto w-full max-w-screen-2xl px-4">
+          <div className="rounded-[28px] border border-slate-100 bg-white p-6 shadow-[0_10px_35px_rgba(15,23,42,0.06)]">
           <div className="flex items-center justify-between mb-8">
             <div>
               <h2 className="text-3xl mb-2">
@@ -452,11 +501,15 @@ const visibleProducts = React.useMemo(() => {
               Không tìm thấy sản phẩm phù hợp.
             </div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
               {visibleProducts.map((product) => (
-                  <Card key={product.id} className="group hover:shadow-xl transition-all cursor-pointer overflow-hidden" onClick={() => navigate(`/product/${product.id}`)}>
+                  <Card
+                    key={product.id}
+                    className="group cursor-pointer overflow-hidden rounded-3xl border border-slate-100 bg-white shadow-sm transition-all duration-500 ease-out hover:-translate-y-2 hover:scale-[1.012] hover:shadow-[0_26px_75px_rgba(15,23,42,0.16)]"
+                    onClick={() => navigate(`/product/${product.id}`)}
+                  >
                     <div className="relative overflow-hidden bg-gray-50">
-                      <ImageWithFallback src={product.images?.[0] || '/src/imports/image.png'} alt={product.name} className="w-full h-64 object-cover group-hover:scale-105 transition-transform duration-300" />
+                      <ImageWithFallback src={product.images?.[0] || '/src/imports/image.png'} alt={product.name} className="w-full h-64 object-cover transition-transform duration-500 ease-out group-hover:scale-110" />
                       {product.store?.store_type === 'B2C' ? (
                         <Badge className="absolute top-3 left-3 z-10 bg-red-600 text-white font-bold rounded-sm px-2 py-0.5 text-xs hover:bg-red-700">
                           Mall
@@ -494,7 +547,7 @@ const visibleProducts = React.useMemo(() => {
          <Button
   size="lg"
   variant="outline"
-  className="px-8"
+  className="mt-10 px-8"
   onClick={() => {
     setActiveSearchQuery('');   // Reset tìm kiếm
     setActiveCategoryId(null); // Reset bộ lọc danh mục
@@ -505,29 +558,25 @@ const visibleProducts = React.useMemo(() => {
   <ArrowRight className="size-4 ml-2" />
 </Button>
         </div>
+        </div>
       </section>
     {showVoucherModal && (
 
     <div
       className="
-        fixed inset-0
-        bg-black/50
-        z-50
-        flex
-        items-center
-        justify-center
+        fixed inset-0 z-50 flex items-center justify-center
+        bg-slate-950/50 backdrop-blur-sm
+        px-4
       "
     >
 
     <div
       className="
-        bg-white
-        w-full
-        max-w-xl
-        rounded-xl
-        p-6
-        max-h-[80vh]
-        overflow-y-auto
+        w-full max-w-xl max-h-[80vh] overflow-y-auto
+        rounded-3xl bg-white p-6
+        shadow-[0_28px_90px_rgba(15,23,42,0.28)]
+        border border-white/70
+        animate-in fade-in zoom-in-95 duration-300
       "
     >
 

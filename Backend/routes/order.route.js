@@ -18,18 +18,22 @@ router.post("/from-cart",verifyToken,checkRole(["Customer"]),ctrl.createFromCart
 
 router.post("/buy-now",verifyToken,checkRole(["Customer"]),ctrl.buyNow);
 
-router.get("/my-orders",verifyToken,checkRole(["Customer"]),ctrl.getMyOrders);
-// ── PHẢI ĐẶT TRƯỚC /:id ──
+router.get("/my-orders", verifyToken, checkRole(["Customer"]), ctrl.getMyOrders);
+
+// WALLET - phải đặt trước /:id
 router.get("/my-wallet", verifyToken, ctrl.getMyWallet);
-
-router.patch("/:id/cancel",verifyToken,ctrl.cancelOrder);
-
-router.get("/:id",verifyToken,checkRole(["Customer"]),ctrl.getOrderDetail);
-router.post(
-  "/wallet/topup",
+router.put("/wallet/bank-account", verifyToken, ctrl.linkWalletBankAccount);
+router.post("/wallet/topup", verifyToken, ctrl.createWalletTopup);
+router.get(
+  "/wallet/topup/:transactionId/status",
   verifyToken,
-  ctrl.createWalletTopup
+  ctrl.getWalletTopupStatus
 );
+router.post("/wallet/withdraw", verifyToken, ctrl.createWalletWithdraw);
+
+router.patch("/:id/cancel", verifyToken, ctrl.cancelOrder);
+
+router.get("/:id", verifyToken, checkRole(["Customer"]), ctrl.getOrderDetail);
 // ─── STORE OWNER ───────────────────────────────────────
 
 router.get("/store/:storeId",verifyToken,checkStoreOwner,ctrl.getStoreOrders);

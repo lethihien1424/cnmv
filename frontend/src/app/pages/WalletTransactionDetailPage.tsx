@@ -8,7 +8,7 @@ import { API_BASE_URL } from '../services/api';
 type WalletTransaction = {
   id: string;
   amount: number;
-  type: 'REFUND' | 'TOPUP' | 'PAYMENT';
+  type: 'REFUND' | 'TOPUP' | 'PAYMENT' | 'WITHDRAW';
   description?: string;
   order_id?: string;
   status?: string;
@@ -32,6 +32,11 @@ const fmtDate = (s?: string | null) => {
 const TX_CONFIG: Record<string, { label: string; icon: string; gradient: string }> = {
   REFUND:  { label: 'Hoàn tiền',  icon: '↩', gradient: 'linear-gradient(135deg, #7c3aed 0%, #4f46e5 50%, #2563eb 100%)' },
   TOPUP:   { label: 'Nạp tiền',   icon: '⬆', gradient: 'linear-gradient(135deg, #059669 0%, #10b981 100%)' },
+  WITHDRAW: {
+  label: 'Rút tiền',
+  icon: '🏦',
+  gradient: 'linear-gradient(135deg, #f97316 0%, #ea580c 100%)',
+},
   PAYMENT: { label: 'Thanh toán', icon: '💳', gradient: 'linear-gradient(135deg, #2563eb 0%, #3b82f6 100%)' },
 };
 
@@ -65,7 +70,7 @@ export default function WalletTransactionDetailPage() {
   useEffect(() => { void fetchTx(); }, [fetchTx]);
 
   const cfg = tx ? (TX_CONFIG[tx.type] ?? { label: tx.type, icon: '?', gradient: '#6b7280' }) : null;
-  const isPositive = tx?.type !== 'PAYMENT';
+  const isPositive = tx?.type === 'REFUND' || tx?.type === 'TOPUP';
 
   return (
     <div className="min-h-screen bg-gray-50">

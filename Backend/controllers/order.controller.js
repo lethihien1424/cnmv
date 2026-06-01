@@ -1,248 +1,66 @@
-// // Backend/controllers/order.controller.js
-// const orderService = require("../services/order.service");
-// const { createPaymentUrl } = require("../services/vnpay.service");
-
-// // ── Helper: validate VNPAY config sớm, trước khi tạo order ──────────────────
-// const validateVnpayConfig = () => {
-//   const required = ["VNP_TMNCODE", "VNP_HASH_SECRET", "VNP_URL", "VNP_RETURN_URL"];
-//   const missing = required.filter((k) => !process.env[k]);
-//   if (missing.length > 0) {
-//     throw new Error(`Thiếu cấu hình VNPAY: ${missing.join(", ")}`);
-//   }
-// };
-
-// // ── Helper: build response sau khi tạo order ────────────────────────────────
-// const buildOrderResponse = (res, orders, paymentMethod) => {
-//   if (paymentMethod === "VNPAY") {
-//     try {
-//       const payUrl = createPaymentUrl(orders[0]);
-//       return res.status(201).json({
-//         success: true,
-//         payUrl,
-//         data: orders,
-//       });
-//     } catch (payErr) {
-//       console.error("createPaymentUrl error:", payErr.message);
-//       // Order đã tạo — trả về order_id để FE có thể retry hoặc hủy
-//       return res.status(201).json({
-//         success: false,
-//         message: `Đặt hàng thành công nhưng không tạo được link thanh toán: ${payErr.message}`,
-//         data: orders,
-//         payUrl: null,
-//       });
-//     }
-//   }
-
-//   return res.status(201).json({
-//     success: true,
-//     message: "Đặt hàng thành công",
-//     data: orders,
-//     shipping_summary: orders.map((o) => ({
-//       order_id: o.id,
-//       shipping_fee: o.shipping_fee,
-//       distance_km: o.distance_km,
-//       estimated_delivery_time: o.estimated_delivery_time,
-//     })),
-//   });
-// };
-
-// // ───────────────────────────────────────────────────────
-// // CREATE ORDER FROM CART
-// // ───────────────────────────────────────────────────────
-// const createFromCart = async (req, res) => {
-//   try {
-//     const userId = req.user.userId || req.user.id;
-//     const {
-//       selected_items,
-//       payment_method,
-//       address_id,
-//       shipping_provider = "STANDARD",
-//     } = req.body;
-
-//     // Validate VNPAY config TRƯỚC khi tạo order
-//     if (payment_method === "VNPAY") {
-//       validateVnpayConfig();
-//     }
-
-//     const orders = await orderService.createOrderFromCart(
-//       userId,
-//       selected_items,
-//       payment_method,
-//       address_id,
-//       shipping_provider
-//     );
-
-//     return buildOrderResponse(res, orders, payment_method);
-//   } catch (error) {
-//     console.error("createFromCart error:", error);
-//     return res.status(400).json({
-//       success: false,
-//       message: error.message,
-//     });
-//   }
-// };
-
-// // ───────────────────────────────────────────────────────
-// // BUY NOW
-// // ───────────────────────────────────────────────────────
-// const buyNow = async (req, res) => {
-//   try {
-//     const userId = req.user.userId || req.user.id;
-//     const {
-//       product_id,
-//       quantity,
-//       payment_method,
-//       address_id,
-//       shipping_provider = "STANDARD",
-//       size = null,
-//       color = null,
-//     } = req.body;
-
-//     // Validate VNPAY config TRƯỚC khi tạo order
-//     if (payment_method === "VNPAY") {
-//       validateVnpayConfig();
-//     }
-
-//     const orders = await orderService.buyNow(
-//       userId,
-//       product_id,
-//       quantity,
-//       payment_method,
-//       address_id,
-//       shipping_provider,
-//       size,
-//       color
-//     );
-
-//     return buildOrderResponse(res, orders, payment_method);
-//   } catch (error) {
-//     console.error("buyNow error:", error);
-//     return res.status(400).json({
-//       success: false,
-//       message: error.message,
-//     });
-//   }
-// };
-
-// // ───────────────────────────────────────────────────────
-// // GET MY ORDERS
-// // ───────────────────────────────────────────────────────
-// const getMyOrders = async (req, res) => {
-//   try {
-//     const userId = req.user.userId || req.user.id;
-//     const orders = await orderService.getOrdersByUser(userId);
-//     return res.json({ success: true, data: orders });
-//   } catch (error) {
-//     console.error("getMyOrders error:", error);
-//     return res.status(500).json({ success: false, message: error.message });
-//   }
-// };
-
-// // ───────────────────────────────────────────────────────
-// // GET STORE ORDERS
-// // ───────────────────────────────────────────────────────
-// const getStoreOrders = async (req, res) => {
-//   try {
-//     const storeId = req.params.storeId;
-//     const orders = await orderService.getOrdersByStore(storeId);
-//     return res.json({ success: true, data: orders });
-//   } catch (error) {
-//     console.error("getStoreOrders error:", error);
-//     return res.status(500).json({ success: false, message: error.message });
-//   }
-// };
-
-// // ───────────────────────────────────────────────────────
-// // GET ORDER DETAIL
-// // ───────────────────────────────────────────────────────
-// const getOrderDetail = async (req, res) => {
-//   try {
-//     const order = await orderService.getOrderById(req.params.id);
-//     if (!order) {
-//       return res.status(404).json({ success: false, message: "Không tìm thấy đơn hàng" });
-//     }
-//     return res.json({ success: true, data: order });
-//   } catch (error) {
-//     console.error("getOrderDetail error:", error);
-//     return res.status(500).json({ success: false, message: error.message });
-//   }
-// };
-
-// // ───────────────────────────────────────────────────────
-// // UPDATE ORDER STATUS
-// // ───────────────────────────────────────────────────────
-// const updateOrderStatus = async (req, res) => {
-//   try {
-//     const { status } = req.body;
-//     const order = await orderService.updateOrderStatus(req.params.id, status);
-//     return res.json({
-//       success: true,
-//       message: "Cập nhật trạng thái thành công",
-//       data: order,
-//     });
-//   } catch (error) {
-//     console.error("updateOrderStatus error:", error);
-//     return res.status(400).json({ success: false, message: error.message });
-//   }
-// };
-// const deleteOrder = async (req, res) => {
-//   try {
-//     await orderService.deleteOrder(
-//       req.params.id
-//     );
-
-//     return res.json({
-//       success: true,
-//       message: "Đã xóa đơn hàng",
-//     });
-//   } catch (error) {
-//     return res.status(400).json({
-//       success: false,
-//       message: error.message,
-//     });
-//   }
-// };
-// module.exports = {
-//   createFromCart,
-//   buyNow,
-//   getMyOrders,
-//   getStoreOrders,
-//   getOrderDetail,
-//   updateOrderStatus,
-//   deleteOrder,
-// };
 // Backend/controllers/order.controller.js
+const { Sequelize } = require("sequelize");
 const orderService = require("../services/order.service");
-const { createPaymentUrl } = require("../services/vnpay.service");
-
-// ── Helper: validate VNPAY config sớm ───────────────────────────────────────
-const validateVnpayConfig = () => {
-  const required = [
-    "VNP_TMNCODE",
-    "VNP_HASH_SECRET",
-    "VNP_URL",
-    "VNP_RETURN_URL",
-  ];
-  const missing = required.filter((k) => !process.env[k]);
-  if (missing.length > 0)
-    throw new Error(`Thiếu cấu hình VNPAY: ${missing.join(", ")}`);
-};
+const { Payment } = require("../models");
+const {
+  buildSepayTransferContent,
+  buildSepayQrUrl,
+} = require("../services/sepay.service");
 
 // ── Helper: build response sau khi tạo order ────────────────────────────────
-const buildOrderResponse = (res, orders, paymentMethod) => {
-  if (paymentMethod === "VNPAY") {
-    try {
-      const payUrl = createPaymentUrl(orders[0]);
-      return res.status(201).json({ success: true, payUrl, data: orders });
-    } catch (payErr) {
-      console.error("createPaymentUrl error:", payErr.message);
-      return res.status(201).json({
-        success: false,
-        message: `Đặt hàng thành công nhưng không tạo được link thanh toán: ${payErr.message}`,
-        data: orders,
-        payUrl: null,
+const buildOrderResponse = async (res, orders, paymentMethod, userId) => {
+  paymentMethod = String(paymentMethod || "COD").toUpperCase();
+
+  if (paymentMethod === "SEPAY") {
+    const payments = [];
+
+    for (const order of orders) {
+      const transferContent = buildSepayTransferContent(order.id);
+
+      const qrUrl = buildSepayQrUrl({
+        amount: order.total_amount,
+        transferContent,
+      });
+
+    
+      const payment = await Payment.create({
+  order_id: order.id,
+  user_id: userId,
+  payment_method: "SEPAY",
+  amount: order.total_amount,
+  status: "PENDING",
+  transfer_content: transferContent,
+
+  // dùng giờ của PostgreSQL, tránh lệch timezone Node/Postgres
+  expires_at: Sequelize.literal("NOW() + INTERVAL '15 minutes'"),
+
+  receiver_name: process.env.SEPAY_ACCOUNT_NAME || null,
+  receiver_bank_name: process.env.SEPAY_BANK_CODE || null,
+  receiver_account_number: process.env.SEPAY_ACCOUNT_NUMBER || null,
+});
+
+await payment.reload();
+
+      payments.push({
+        payment_id: payment.id,
+        order_id: order.id,
+        amount: Number(order.total_amount),
+        transfer_content: transferContent,
+        qr_url: qrUrl,
+        expires_at: payment.expires_at,
+        receiver_name: payment.receiver_name,
+        receiver_bank_name: payment.receiver_bank_name,
+        receiver_account_number: payment.receiver_account_number,
       });
     }
+
+    return res.status(201).json({
+      success: true,
+      message: "Đặt hàng thành công, vui lòng quét QR để thanh toán",
+      payment_method: "SEPAY",
+      data: orders,
+      payments,
+    });
   }
 
   return res.status(201).json({
@@ -257,7 +75,6 @@ const buildOrderResponse = (res, orders, paymentMethod) => {
     })),
   });
 };
-
 // ── CREATE ORDER FROM CART ───────────────────────────────────────────────────
 const createFromCart = async (req, res) => {
   try {
@@ -270,7 +87,6 @@ const createFromCart = async (req, res) => {
       platform_voucher_id,
       shop_voucher_id,
     } = req.body;
-    if (payment_method === "VNPAY") validateVnpayConfig();
     const orders = await orderService.createOrderFromCart(
       userId,
       selected_items,
@@ -280,7 +96,7 @@ const createFromCart = async (req, res) => {
       platform_voucher_id,
       shop_voucher_id,
     );
-    return buildOrderResponse(res, orders, payment_method);
+    return await buildOrderResponse(res, orders, payment_method, userId);
   } catch (error) {
     console.error("createFromCart error:", error);
     return res.status(400).json({ success: false, message: error.message });
@@ -320,8 +136,6 @@ const buyNow = async (req, res) => {
       });
     }
 
-    if (payment_method === "VNPAY") validateVnpayConfig();
-
     const orders = await orderService.buyNow(
       userId,
       product_id,
@@ -334,39 +148,87 @@ const buyNow = async (req, res) => {
       platform_voucher_id,
       shop_voucher_id,
     );
-    return buildOrderResponse(res, orders, payment_method);
+    return await buildOrderResponse(res, orders, payment_method, userId);
   } catch (error) {
     console.error("buyNow error:", error);
     return res.status(400).json({ success: false, message: error.message });
   }
 };
+const linkWalletBankAccount = async (req, res) => {
+  try {
+    const userId = req.user.userId || req.user.id;
+
+    const wallet = await orderService.linkWalletBankAccount(userId, req.body);
+
+    return res.json({
+      success: true,
+      message: "Liên kết tài khoản ngân hàng thành công",
+      data: wallet,
+    });
+  } catch (error) {
+    return res.status(400).json({
+      success: false,
+      message: error.message,
+    });
+  }
+};
+
 const createWalletTopup = async (req, res) => {
   try {
     const userId = req.user.userId || req.user.id;
 
-    const { amount } = req.body;
+    const result = await orderService.createWalletTopup(
+      userId,
+      req.body.amount
+    );
 
-    if (!amount || amount <= 0) {
-      throw new Error("Số tiền không hợp lệ");
-    }
+    return res.status(201).json({
+      success: true,
+      message: "Tạo mã QR nạp ví thành công",
+      data: result,
+    });
+  } catch (error) {
+    return res.status(400).json({
+      success: false,
+      message: error.message,
+    });
+  }
+};
 
-    validateVnpayConfig();
+const getWalletTopupStatus = async (req, res) => {
+  try {
+    const userId = req.user.userId || req.user.id;
 
-    const fakeOrder = {
-      id: `TOPUP_${Date.now()}`,
-
-      total_amount: amount,
-      totalAmount: amount,
-
-      buyer_id: userId,
-      buyerId: userId,
-    };
-
-    const payUrl = createPaymentUrl(fakeOrder);
+    const result = await orderService.getWalletTopupStatus(
+      userId,
+      req.params.transactionId
+    );
 
     return res.json({
       success: true,
-      payUrl,
+      data: result,
+    });
+  } catch (error) {
+    return res.status(400).json({
+      success: false,
+      message: error.message,
+    });
+  }
+};
+
+const createWalletWithdraw = async (req, res) => {
+  try {
+    const userId = req.user.userId || req.user.id;
+
+    const result = await orderService.createWalletWithdraw(
+      userId,
+      req.body.amount
+    );
+
+    return res.status(201).json({
+      success: true,
+      message: "Đã tạo yêu cầu rút tiền, vui lòng chờ admin xử lý",
+      data: result,
     });
   } catch (error) {
     return res.status(400).json({
@@ -499,5 +361,9 @@ module.exports = {
   cancelOrder,
   deleteOrder,
   getMyWallet,
+
+  linkWalletBankAccount,
   createWalletTopup,
+  getWalletTopupStatus,
+  createWalletWithdraw,
 };

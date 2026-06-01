@@ -4,19 +4,20 @@
 // import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 
 import AddressSelector from '../components/AddressSelector';
 import StoreHeader from '../components/StoreHeader';
 import StoreFooter from '../components/StoreFooter';
 import { apiRequest, API_BASE_URL } from '../services/api';
 import { UserAddress } from '../services/addressService';
+import { orderAPI } from '../services/orderService';
 import voucherService from '../services/voucherService';
 import {
   Package, MapPin, Truck, CreditCard, Receipt,
   AlertCircle, Clock, Zap, CheckCircle, Loader2,
   Tag, ArrowRight, X, ChevronRight, Ticket, Gift,
-  Wallet,
+  Wallet, QrCode, Copy, XCircle,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Dialog, DialogContent } from '../components/ui/dialog';
@@ -47,6 +48,17 @@ interface CheckoutItem {
 }
 interface ShippingOption { fee: number; available: boolean; name: string; eta: string; reason?: string; }
 interface ShippingOptions { success: boolean; standard: ShippingOption; express: ShippingOption; }
+interface SepayPayment {
+  payment_id: string;
+  order_id: string;
+  amount: number;
+  transfer_content: string;
+  qr_url: string;
+  expires_at?: string | null;
+  receiver_name?: string | null;
+  receiver_bank_name?: string | null;
+  receiver_account_number?: string | null;
+}
 
 if (!document.head.querySelector('[href*="Be+Vietnam+Pro"]')) {
   const l = document.createElement('link');
@@ -201,11 +213,6 @@ const VoucherSheet: React.FC<VoucherSheetProps> = ({
 const CheckoutPage: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const [searchParams] = useSearchParams();
-
-  const paymentStatus = searchParams.get('payment_status');
-  const resultOrderId = searchParams.get('order_id');
-  const errorCode = searchParams.get('error_code');
 
   const { items = [], fromCart = false } =
     (location.state as { items: CheckoutItem[]; fromCart: boolean }) || {};
@@ -213,7 +220,7 @@ const CheckoutPage: React.FC = () => {
   const [selectedAddressId, setSelectedAddressId] = useState<string | null>(null);
   const [selectedAddress, setSelectedAddress] = useState<UserAddress | null>(null);
   const [shippingMethod, setShippingMethod] = useState<'STANDARD' | 'EXPRESS'>('STANDARD');
-  const [paymentMethod, setPaymentMethod] = useState<'COD' | 'VNPAY' | 'WALLET'>('COD');
+  const [paymentMethod, setPaymentMethod] = useState<'COD' | 'SEPAY' | 'WALLET'>('COD');
   const [walletBalance, setWalletBalance] = useState(0);
 
   // Voucher states
@@ -221,6 +228,7 @@ const CheckoutPage: React.FC = () => {
   const [platformVoucher, setPlatformVoucher] = useState<any>(null);
   const [shopDiscount, setShopDiscount] = useState(0);
   const [platformDiscount, setPlatformDiscount] = useState(0);
+  const [shippingDiscount, setShippingDiscount] = useState(0);
   const [shopVouchers, setShopVouchers] = useState<any[]>([]);
   const [platformVouchers, setPlatformVouchers] = useState<any[]>([]);
   const [showShopSheet, setShowShopSheet] = useState(false);
@@ -232,6 +240,11 @@ const CheckoutPage: React.FC = () => {
   const [shippingOptions, setShippingOptions] = useState<ShippingOptions | null>(null);
   const [shippingError, setShippingError] = useState<string | null>(null);
   const [searchValue, setSearchValue] = useState('');
+  const [sepayPayments, setSepayPayments] = useState<SepayPayment[]>([]);
+  const [activeSepayIndex, setActiveSepayIndex] = useState(0);
+  const [sepayStatus, setSepayStatus] = useState<'idle' | 'waiting' | 'success' | 'failed'>('idle');
+  const [sepayMessage, setSepayMessage] = useState('');
+  const [cancellingSepay, setCancellingSepay] = useState(false);
 
   const groupedItems = useMemo(() => {
     return items.reduce((acc, item) => {
@@ -284,9 +297,11 @@ const CheckoutPage: React.FC = () => {
   }, [items]);
 
   const storeCount = Object.keys(groupedItems).filter((k) => k !== 'unknown').length || 1;
-  const totalDiscount = shopDiscount + platformDiscount;
+  const systemDiscount = platformDiscount + shippingDiscount;
+  const totalDiscount = shopDiscount + systemDiscount;
   const totalAmount = Math.max(0, subtotal + shippingFee - totalDiscount);
   const totalQty = items.reduce((s, i) => s + (i.quantity || 1), 0);
+  const activeSepayPayment = sepayPayments[activeSepayIndex] || sepayPayments[0] || null;
 
   // Load wallet
   useEffect(() => {
@@ -318,7 +333,12 @@ const CheckoutPage: React.FC = () => {
   // Recalculate discount when voucher or subtotal changes
   useEffect(() => {
     (async () => {
-      if (!shopVoucher && !platformVoucher) { setShopDiscount(0); setPlatformDiscount(0); return; }
+      if (!shopVoucher && !platformVoucher) {
+        setShopDiscount(0);
+        setPlatformDiscount(0);
+        setShippingDiscount(0);
+        return;
+      }
       try {
         const result = await voucherService.validateVoucher({
           shop_voucher_id: shopVoucher?.id || null,
@@ -327,12 +347,20 @@ const CheckoutPage: React.FC = () => {
         });
         setShopDiscount(result.shop_discount || 0);
         setPlatformDiscount(result.platform_discount || 0);
-      } catch { setShopDiscount(0); setPlatformDiscount(0); }
+        const freeshipPercent = Number(result.freeship_discount || 0);
+        setShippingDiscount(
+          freeshipPercent > 0 ? Math.round(shippingFee * (freeshipPercent / 100)) : 0,
+        );
+      } catch {
+        setShopDiscount(0);
+        setPlatformDiscount(0);
+        setShippingDiscount(0);
+      }
     })();
-  }, [shopVoucher, platformVoucher, subtotal]);
+  }, [shopVoucher, platformVoucher, subtotal, shippingFee]);
 
   useEffect(() => {
-    if (!paymentStatus && items.length === 0) { toast.error('Không có sản phẩm để thanh toán'); navigate('/cart'); }
+    if (items.length === 0) { toast.error('Không có sản phẩm để thanh toán'); navigate('/cart'); }
   }, []);
 
   const fetchShippingFees = async (address: UserAddress) => {
@@ -363,6 +391,88 @@ const CheckoutPage: React.FC = () => {
     if (method === 'EXPRESS' && !shippingOptions?.express.available) return;
     setShippingMethod(method);
     if (shippingOptions) setShippingFee((method === 'EXPRESS' ? shippingOptions.express.fee : shippingOptions.standard.fee) * storeCount);
+  };
+
+  useEffect(() => {
+    if (sepayStatus !== 'waiting' || sepayPayments.length === 0) return;
+
+    let stopped = false;
+    const pollSepayStatus = async () => {
+      const statuses = await Promise.all(
+        sepayPayments.map((payment) =>
+          orderAPI.getSepayPaymentStatus(payment.payment_id).catch(() => null),
+        ),
+      );
+
+      if (stopped) return;
+
+      const allPaid = statuses.every(
+        (status) =>
+          status &&
+          status.payment_status === 'PAID' &&
+          status.order?.payment_status === 'PAID' &&
+          status.order?.order_status === 'PICKUP',
+      );
+      const hasFailed = statuses.some(
+        (status) =>
+          status &&
+          (status.payment_status === 'FAILED' ||
+            status.order?.payment_status === 'FAILED' ||
+            status.order?.order_status === 'CANCELLED'),
+      );
+
+      if (allPaid) {
+        setSepayStatus('success');
+        setSepayMessage('Thanh toán thành công. Đơn hàng đã chuyển sang trạng thái chờ lấy hàng.');
+        toast.success('Thanh toán Sepay thành công!');
+      } else if (hasFailed) {
+        setSepayStatus('failed');
+        setSepayMessage('Thanh toán thất bại hoặc đơn hàng đã được hủy.');
+        toast.error('Thanh toán Sepay thất bại');
+      }
+    };
+
+    void pollSepayStatus();
+    const timer = window.setInterval(pollSepayStatus, 3000);
+
+    return () => {
+      stopped = true;
+      window.clearInterval(timer);
+    };
+  }, [sepayPayments, sepayStatus]);
+
+  const copyTransferContent = async () => {
+    if (!activeSepayPayment?.transfer_content) return;
+    await navigator.clipboard.writeText(activeSepayPayment.transfer_content);
+    toast.success('Đã sao chép nội dung chuyển khoản');
+  };
+
+  const closeSepayResult = () => {
+    const orderId = sepayPayments[0]?.order_id;
+    setSepayPayments([]);
+    setSepayStatus('idle');
+    if (orderId) navigate(`/orders/${orderId}`, { replace: true });
+    else navigate('/customer/profile', { replace: true });
+  };
+
+  const cancelSepayAction = async () => {
+    if (sepayPayments.length === 0) return;
+
+    setCancellingSepay(true);
+    try {
+      await Promise.all(
+        sepayPayments.map((payment) =>
+          orderAPI.cancelCustomerOrder(payment.order_id, 'PAYMENT_CANCELLED'),
+        ),
+      );
+      setSepayStatus('failed');
+      setSepayMessage('Bạn đã hủy thao tác thanh toán. Đơn hàng đã chuyển sang trạng thái đã hủy.');
+      toast.success('Đã hủy thao tác thanh toán Sepay');
+    } catch (err: any) {
+      toast.error(err?.message || 'Không thể hủy thao tác');
+    } finally {
+      setCancellingSepay(false);
+    }
   };
 
  const handlePlaceOrder = async () => {
@@ -431,8 +541,21 @@ const CheckoutPage: React.FC = () => {
       throw new Error(payload?.message || 'Đặt hàng thất bại');
     }
 
-    if (paymentMethod === 'VNPAY' && payload?.payUrl) {
-      window.location.href = payload.payUrl;
+    if (paymentMethod === 'SEPAY' && Array.isArray(payload?.payments)) {
+      setSepayPayments(payload.payments);
+      setActiveSepayIndex(0);
+      setSepayStatus('waiting');
+      setSepayMessage('');
+      return;
+    }
+
+    if (paymentMethod === 'SEPAY') {
+      throw new Error(payload?.message || 'Không tạo được mã QR Sepay');
+    }
+
+    if (paymentMethod === 'WALLET') {
+      toast.success('Thanh toán ví thành công. Đơn hàng đang chờ lấy hàng.');
+      navigate('/orders?tab=pickup');
       return;
     }
 
@@ -444,8 +567,6 @@ const CheckoutPage: React.FC = () => {
     setSubmitting(false);
   }
 };
-
-  const handleReturnHome = () => navigate('/', { replace: true });
 
   // ─── STYLES ───────────────────────────────────────────────────────────────
   const css = `
@@ -498,7 +619,7 @@ const CheckoutPage: React.FC = () => {
     .pay-btn:hover:not(:disabled) { border-color: #d1d5db; transform: translateY(-1px); box-shadow: 0 4px 12px rgba(0,0,0,0.06); }
     .pay-btn:disabled { opacity: 0.5; cursor: not-allowed; }
     .pay-btn.active-cod   { border-color: #10b981; background: #f0fdf4; box-shadow: 0 4px 16px rgba(16,185,129,0.12); }
-    .pay-btn.active-vnpay { border-color: #2563eb; background: #eff6ff; box-shadow: 0 4px 16px rgba(37,99,235,0.12); }
+    .pay-btn.active-sepay { border-color: #0f766e; background: #ecfdf5; box-shadow: 0 4px 16px rgba(15,118,110,0.12); }
     .pay-btn.active-wallet { border-color: #7c3aed; background: #f5f3ff; box-shadow: 0 4px 16px rgba(124,58,237,0.12); }
 
     /* Voucher trigger buttons */
@@ -539,6 +660,41 @@ const CheckoutPage: React.FC = () => {
 
     /* Result */
     .result-icon-wrap { width: 72px; height: 72px; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 16px; }
+    .sepay-qr-wrap {
+      width: min(100%, 288px);
+      aspect-ratio: 1 / 1;
+      margin: 0 auto;
+      border-radius: 22px;
+      background: linear-gradient(180deg, #ffffff, #f8fafc);
+      border: 1px solid #e2e8f0;
+      box-shadow: 0 18px 44px rgba(15, 23, 42, 0.12);
+      padding: 16px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .sepay-qr-wrap img { width: 100%; height: 100%; object-fit: contain; border-radius: 14px; }
+    .sepay-meta {
+      display: grid;
+      gap: 10px;
+      border-radius: 16px;
+      background: #f8fafc;
+      border: 1px solid #e2e8f0;
+      padding: 14px;
+    }
+    .sepay-meta-row { display: flex; justify-content: space-between; gap: 12px; font-size: 12px; color: #64748b; }
+    .sepay-meta-row b { color: #0f172a; text-align: right; word-break: break-word; }
+    .sepay-transfer {
+      border-radius: 16px;
+      background: #ecfdf5;
+      border: 1px solid #bbf7d0;
+      padding: 12px 14px;
+      color: #065f46;
+      font-size: 12px;
+      line-height: 1.55;
+      text-align: center;
+      word-break: break-word;
+    }
 
     /* Animations */
     @keyframes fadeUp { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: translateY(0); } }
@@ -558,30 +714,84 @@ const CheckoutPage: React.FC = () => {
     @media (min-width: 1024px) { .checkout-grid { grid-template-columns: 1fr 360px; } }
   `;
 
-  // ─── VNPAY Result Dialog ──────────────────────────────────────────────────
-  const renderResultDialog = () => {
-    if (!paymentStatus) return null;
-    const ok = paymentStatus === 'success';
+  // ─── Sepay QR Dialog ──────────────────────────────────────────────────────
+  const renderSepayDialog = () => {
+    if (!activeSepayPayment || sepayStatus === 'idle') return null;
+    const ok = sepayStatus === 'success';
+    const failed = sepayStatus === 'failed';
+    const result = ok || failed;
+    const resultColor = ok ? '#16a34a' : failed ? '#dc2626' : '#0f766e';
+    const resultBg = ok ? '#16a34a22' : failed ? '#fee2e2' : '#0f766e18';
     return (
-      <Dialog open onOpenChange={handleReturnHome}>
-        <DialogContent className="sm:max-w-sm rounded-3xl p-0 overflow-hidden">
-          <div style={{ background: ok ? 'linear-gradient(145deg,#f0fdf4,#dcfce7)' : 'linear-gradient(145deg,#fff5f5,#fee2e2)', padding: '40px 32px 32px', textAlign: 'center' }}>
-            <div className="result-icon-wrap" style={{ background: ok ? '#16a34a22' : '#ef444422' }}>
-              {ok ? <CheckCircle size={36} color="#16a34a" /> : <AlertCircle size={36} color="#ef4444" />}
+      <Dialog open onOpenChange={(open) => { if (!open && result) closeSepayResult(); }}>
+        <DialogContent className="sm:max-w-md rounded-3xl p-0 overflow-hidden">
+          <div style={{ background: ok ? 'linear-gradient(145deg,#f0fdf4,#dcfce7)' : failed ? 'linear-gradient(145deg,#fff1f2,#fee2e2)' : 'linear-gradient(145deg,#ffffff,#f8fafc)', padding: '32px 28px 24px', textAlign: 'center' }}>
+            <div className="result-icon-wrap" style={{ background: resultBg }}>
+              {ok ? <CheckCircle size={36} color="#16a34a" /> : failed ? <XCircle size={36} color="#dc2626" /> : <QrCode size={36} color="#0f766e" />}
             </div>
             <h2 style={{ fontFamily: "'Be Vietnam Pro',sans-serif", fontSize: 22, fontWeight: 800, color: '#111', marginBottom: 8 }}>
-              {ok ? 'Thanh toán thành công!' : 'Thanh toán thất bại'}
+              {ok ? 'Thanh toán thành công!' : failed ? 'Thanh toán thất bại' : 'Quét QR Sepay'}
             </h2>
-            <p style={{ color: '#64748b', fontSize: 14, lineHeight: 1.6 }}>
-              {ok ? <>Đơn hàng <b style={{ fontFamily: 'monospace', color: '#111' }}>#{String(resultOrderId).slice(0, 8).toUpperCase()}</b> đã xác nhận.</> : <>Giao dịch thất bại. Mã lỗi: <b>{errorCode}</b></>}
-            </p>
+            {result ? (
+              <p style={{ color: '#64748b', fontSize: 14, lineHeight: 1.6 }}>
+                {sepayMessage || (ok
+                  ? 'Đơn hàng đã thanh toán và chuyển sang trạng thái chờ lấy hàng.'
+                  : 'Đơn hàng đã được chuyển sang trạng thái đã hủy.')}
+                <br />
+                Đơn hàng <b style={{ fontFamily: 'monospace', color: '#111' }}>#{activeSepayPayment.order_id.slice(0, 8).toUpperCase()}</b>
+              </p>
+            ) : (
+              <div style={{ display: 'grid', gap: 16 }}>
+                <p style={{ color: '#64748b', fontSize: 14, lineHeight: 1.6, margin: 0 }}>
+                  Quét mã bên dưới để thanh toán. Hệ thống sẽ tự cập nhật khi nhận giao dịch.
+                </p>
+                {sepayPayments.length > 1 && (
+                  <div style={{ display: 'flex', justifyContent: 'center', gap: 8, overflowX: 'auto' }}>
+                    {sepayPayments.map((payment, index) => (
+                      <button
+                        key={payment.payment_id}
+                        onClick={() => setActiveSepayIndex(index)}
+                        style={{ border: activeSepayIndex === index ? '1px solid #0f766e' : '1px solid #e2e8f0', background: activeSepayIndex === index ? '#ecfdf5' : '#fff', color: activeSepayIndex === index ? '#0f766e' : '#64748b', borderRadius: 999, padding: '7px 12px', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}
+                      >
+                        Đơn {index + 1}
+                      </button>
+                    ))}
+                  </div>
+                )}
+                <div className="sepay-qr-wrap">
+                  <img src={activeSepayPayment.qr_url} alt="QR thanh toán Sepay" />
+                </div>
+                <div className="sepay-transfer">
+                  Nội dung chuyển khoản: thanh toán cho đơn hàng #{activeSepayPayment.order_id.slice(0, 8).toUpperCase()}
+                  <br />
+                  <b>{activeSepayPayment.transfer_content}</b>
+                </div>
+                <div className="sepay-meta">
+                  <div className="sepay-meta-row"><span>Số tiền</span><b>{fmt(Number(activeSepayPayment.amount))}</b></div>
+                  <div className="sepay-meta-row"><span>Ngân hàng</span><b>{activeSepayPayment.receiver_bank_name || 'Sepay'}</b></div>
+                  <div className="sepay-meta-row"><span>Số tài khoản</span><b>{activeSepayPayment.receiver_account_number || '—'}</b></div>
+                  <div className="sepay-meta-row"><span>Chủ tài khoản</span><b>{activeSepayPayment.receiver_name || '—'}</b></div>
+                </div>
+                <button
+                  onClick={copyTransferContent}
+                  style={{ height: 42, borderRadius: 12, border: '1px solid #bbf7d0', background: '#f0fdf4', color: '#047857', fontWeight: 800, fontSize: 13, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, cursor: 'pointer' }}
+                >
+                  <Copy size={15} /> Sao chép nội dung chuyển khoản
+                </button>
+              </div>
+            )}
           </div>
           <div style={{ padding: '20px 32px 28px', background: '#fff' }}>
             <button
-              onClick={ok ? () => navigate('/orders') : handleReturnHome}
-              style={{ width: '100%', padding: 13, background: ok ? 'linear-gradient(135deg,#16a34a,#15803d)' : 'linear-gradient(135deg,#ef4444,#dc2626)', color: '#fff', border: 'none', borderRadius: 12, fontFamily: "'Be Vietnam Pro',sans-serif", fontSize: 15, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}
+              onClick={result ? closeSepayResult : cancelSepayAction}
+              disabled={!result && cancellingSepay}
+              style={{ width: '100%', padding: 13, background: ok ? 'linear-gradient(135deg,#16a34a,#15803d)' : failed ? 'linear-gradient(135deg,#ef4444,#dc2626)' : 'linear-gradient(135deg,#ef4444,#dc2626)', color: '#fff', border: 'none', borderRadius: 12, fontFamily: "'Be Vietnam Pro',sans-serif", fontSize: 15, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, boxShadow: result ? `0 14px 30px ${resultColor}33` : 'none' }}
             >
-              {ok ? <>Xem đơn hàng <ArrowRight size={16} /></> : <>Về trang chủ <ArrowRight size={16} /></>}
+              {cancellingSepay && !result
+                ? <><Loader2 size={16} style={{ animation: 'spin 1s linear infinite' }} />Đang xử lý...</>
+                : result
+                ? <>OK, xem chi tiết đơn <ArrowRight size={16} /></>
+                : <><XCircle size={16} /> Hủy thao tác</>}
             </button>
           </div>
         </DialogContent>
@@ -616,7 +826,7 @@ const CheckoutPage: React.FC = () => {
         accentColor="#6366f1"
       />
 
-      {renderResultDialog()}
+      {renderSepayDialog()}
 
       <StoreHeader
         searchValue={searchValue}
@@ -625,7 +835,7 @@ const CheckoutPage: React.FC = () => {
       />
 
       <main style={{ maxWidth: 1200, margin: '0 auto', padding: '24px 20px 0' }}>
-        {items.length === 0 && !paymentStatus ? (
+        {items.length === 0 ? (
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '80px 0' }}>
             <Loader2 size={36} color="#6366f1" style={{ animation: 'spin 1s linear infinite', marginBottom: 16 }} />
             <p style={{ color: '#9ca3af', fontFamily: "'Be Vietnam Pro',sans-serif" }}>Đang tải dữ liệu...</p>
@@ -788,8 +998,8 @@ const CheckoutPage: React.FC = () => {
                         {platformVoucher ? platformVoucher.name || platformVoucher.code : `${platformVouchers.length} voucher trong kho`}
                       </p>
                     </div>
-                    {platformVoucher && platformDiscount > 0 && (
-                      <span style={{ color: '#ef4444', fontWeight: 700, fontSize: 13, flexShrink: 0 }}>-{fmt(platformDiscount)}</span>
+                    {platformVoucher && systemDiscount > 0 && (
+                      <span style={{ color: '#ef4444', fontWeight: 700, fontSize: 13, flexShrink: 0 }}>-{fmt(systemDiscount)}</span>
                     )}
                     <ChevronRight size={16} color="#d1d5db" style={{ flexShrink: 0 }} />
                   </button>
@@ -816,16 +1026,16 @@ const CheckoutPage: React.FC = () => {
                       </div>
                       {paymentMethod === 'COD' && <CheckCircle size={15} color="#16a34a" style={{ flexShrink: 0 }} />}
                     </button>
-                    {/* VNPAY */}
-                    <button className={`pay-btn ${paymentMethod === 'VNPAY' ? 'active-vnpay' : ''}`} onClick={() => setPaymentMethod('VNPAY')}>
-                      <div style={{ width: 38, height: 38, borderRadius: 10, flexShrink: 0, background: paymentMethod === 'VNPAY' ? '#dbeafe' : '#f3f4f6', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                        <CreditCard size={17} color={paymentMethod === 'VNPAY' ? '#2563eb' : '#9ca3af'} />
+                    {/* Sepay */}
+                    <button className={`pay-btn ${paymentMethod === 'SEPAY' ? 'active-sepay' : ''}`} onClick={() => setPaymentMethod('SEPAY')}>
+                      <div style={{ width: 38, height: 38, borderRadius: 10, flexShrink: 0, background: paymentMethod === 'SEPAY' ? '#ccfbf1' : '#f3f4f6', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                        <QrCode size={17} color={paymentMethod === 'SEPAY' ? '#0f766e' : '#9ca3af'} />
                       </div>
                       <div style={{ flex: 1, minWidth: 0 }}>
-                        <p style={{ margin: 0, fontWeight: 700, fontSize: 13, color: '#111827' }}>VNPAY</p>
-                        <p style={{ margin: '1px 0 0', fontSize: 11, color: '#9ca3af' }}>Thanh toán online</p>
+                        <p style={{ margin: 0, fontWeight: 700, fontSize: 13, color: '#111827' }}>Sepay QR</p>
+                        <p style={{ margin: '1px 0 0', fontSize: 11, color: '#9ca3af' }}>Quét mã chuyển khoản</p>
                       </div>
-                      {paymentMethod === 'VNPAY' && <CheckCircle size={15} color="#2563eb" style={{ flexShrink: 0 }} />}
+                      {paymentMethod === 'SEPAY' && <CheckCircle size={15} color="#0f766e" style={{ flexShrink: 0 }} />}
                     </button>
                     {/* Wallet */}
                     <button
@@ -880,10 +1090,16 @@ const CheckoutPage: React.FC = () => {
                       </span>
                   }
                 </div>
-                {totalDiscount > 0 && (
+                {shopDiscount > 0 && (
                   <div className="summary-row">
-                    <span style={{ fontSize: 13, color: '#6b7280' }}>Giảm giá</span>
-                    <span style={{ fontSize: 13, fontWeight: 700, color: '#ef4444' }}>-{fmt(totalDiscount)}</span>
+                    <span style={{ fontSize: 13, color: '#6b7280' }}>Voucher của shop</span>
+                    <span style={{ fontSize: 13, fontWeight: 700, color: '#ef4444' }}>-{fmt(shopDiscount)}</span>
+                  </div>
+                )}
+                {systemDiscount > 0 && (
+                  <div className="summary-row">
+                    <span style={{ fontSize: 13, color: '#6b7280' }}>Voucher hệ thống</span>
+                    <span style={{ fontSize: 13, fontWeight: 700, color: '#ef4444' }}>-{fmt(systemDiscount)}</span>
                   </div>
                 )}
 
@@ -904,8 +1120,8 @@ const CheckoutPage: React.FC = () => {
                 >
                   {submitting
                     ? <><Loader2 size={16} style={{ animation: 'spin 1s linear infinite' }} />Đang xử lý...</>
-                    : paymentMethod === 'VNPAY'
-                    ? <>Thanh toán VNPAY <ArrowRight size={16} /></>
+                    : paymentMethod === 'SEPAY'
+                    ? <>Đặt mua ngay <QrCode size={16} /></>
                     : <>Đặt hàng ngay <ArrowRight size={16} /></>}
                 </button>
 
