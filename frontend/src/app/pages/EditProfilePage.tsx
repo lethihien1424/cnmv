@@ -4,10 +4,8 @@ import { useNavigate } from 'react-router-dom';
 import { Button } from '../components/ui/button';
 import { Card, CardContent } from '../components/ui/card';
 import { toast } from 'sonner';
-import axios from 'axios';
+import { apiRequest } from '../services/api';
 import { ArrowLeft, User, Camera, ChevronRight, HelpCircle, MapPin } from 'lucide-react';
-
-import { API_BASE_URL } from '../services/api'; 
 // 🌟 IMPORT ĐÚNG COMPONENT AddressSelector CÓ SẴN BẢN ĐỒ CỦA BẠN
 import AddressSelector from '../components/AddressSelector';
 
@@ -31,10 +29,7 @@ export default function EditProfilePage() {
 
     const fetchProfile = async () => {
       try {
-        const res = await axios.get(`${API_BASE_URL}/users/profile`, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-        const u = res.data.data;
+        const u = await apiRequest<any>('/users/profile', { method: 'GET' }, token);
 
         const allAddresses: any[] = u.addresses || [];
         const defaultAddress = allAddresses.find((a: any) => a.is_default) || allAddresses[0] || null;
@@ -65,24 +60,23 @@ export default function EditProfilePage() {
   const handleSubmit = async () => {
     setLoading(true);
     try {
-      await axios.put(
-        `${API_BASE_URL}/users/profile`,
-        {
+      await apiRequest('/users/profile', {
+        method: 'PUT',
+        body: JSON.stringify({
           username:      formData.username,
           email:         formData.email,
           gender:        formData.gender        || null,
           date_of_birth: formData.dob           || null,
           phone:         formData.phone,
           address_id:    selectedAddressId,
-        },
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
+        }),
+      }, token);
 
       updateUser({ username: formData.username });
       toast.success('Cập nhật hồ sơ và địa chỉ thành công!');
       navigate(-1);
     } catch (error: any) {
-      toast.error(error.response?.data?.message || 'Lỗi khi cập nhật hồ sơ');
+      toast.error(error.response?.data?.message || error.message || 'Lỗi khi cập nhật hồ sơ');
     } finally {
       setLoading(false);
     }

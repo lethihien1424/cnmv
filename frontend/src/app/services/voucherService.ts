@@ -1,14 +1,5 @@
 // frontend/src/app/services/voucher.service.ts
-import axios from "axios";
-import { API_BASE_URL } from "./api";
-
-const getToken = () => localStorage.getItem("token");
-
-const authConfig = () => ({
-  headers: {
-    Authorization: `Bearer ${getToken()}`,
-  },
-});
+import { apiRequest } from "./api";
 
 export default {
   // =====================
@@ -16,70 +7,49 @@ export default {
   // =====================
 
   async getMyVouchers() {
-    const res = await axios.get(
-      `${API_BASE_URL}/vouchers/my-vouchers`,
-      authConfig()
-    );
-    return res.data.data;
+    return apiRequest<any>('/vouchers/my-vouchers', { method: 'GET' });
   },
 
-  /** Lấy danh sách voucher sàn public (dành cho tất cả, để customer xem & lưu) */
+  /** Lấy danh sách voucher sàn public (dành cho tất cả, bao gồm guest) */
   async getPublicPlatformVouchers() {
-    const res = await axios.get(
-      `${API_BASE_URL}/vouchers/public`,
-      authConfig()
-    );
-    return res.data.data;
+    const token = localStorage.getItem("token");
+    return apiRequest<any>('/vouchers/public', { method: 'GET' }, token);
   },
-
-  
 
   // =====================
   // PLATFORM VOUCHERS (Admin)
   // =====================
 
   async getPlatformVouchers() {
-    const res = await axios.get(
-      `${API_BASE_URL}/vouchers/admin/platform`,
-      authConfig()
-    );
-    return res.data.data;
+    return apiRequest<any>('/vouchers/admin/platform', { method: 'GET' });
   },
 
   async createPlatformVoucher(data: any) {
-    const res = await axios.post(
-      `${API_BASE_URL}/vouchers/admin/platform`,
-      data,
-      authConfig()
-    );
-    return res.data;
+    return apiRequest<any>('/vouchers/admin/platform', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
   },
 
   async updatePlatformVoucher(voucherId: string, data: any) {
-    const res = await axios.put(
-      `${API_BASE_URL}/vouchers/admin/platform/${voucherId}`,
-      data,
-      authConfig()
-    );
-    return res.data;
+    return apiRequest<any>(`/vouchers/admin/platform/${voucherId}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
   },
 
   async disablePlatformVoucher(voucherId: string) {
-    const res = await axios.patch(
-      `${API_BASE_URL}/vouchers/admin/platform/${voucherId}/disable`,
-      {},
-      authConfig()
-    );
-    return res.data;
+    return apiRequest<any>(`/vouchers/admin/platform/${voucherId}/disable`, {
+      method: 'PATCH',
+      body: JSON.stringify({}),
+    });
   },
 
   async enablePlatformVoucher(voucherId: string) {
-    const res = await axios.patch(
-      `${API_BASE_URL}/vouchers/admin/platform/${voucherId}/enable`,
-      {},
-      authConfig()
-    );
-    return res.data;
+    return apiRequest<any>(`/vouchers/admin/platform/${voucherId}/enable`, {
+      method: 'PATCH',
+      body: JSON.stringify({}),
+    });
   },
 
   // =====================
@@ -88,95 +58,71 @@ export default {
 
   /** Lấy voucher của shop đang đăng nhập (dùng trong VoucherManagementPage) */
   async getMyShopVouchers() {
-    const res = await axios.get(
-      `${API_BASE_URL}/vouchers/shop/my`,
-      authConfig()
-    );
-    return res.data.data;
+    return apiRequest<any>('/vouchers/shop/my', { method: 'GET' });
   },
 
   /** Lấy voucher của shop bất kỳ theo storeId (dùng khi customer xem shop) */
   async getShopVouchersByStore(storeId: string) {
-    const res = await axios.get(
-      `${API_BASE_URL}/vouchers/shop/${storeId}`,
-      authConfig()
-    );
-    return res.data.data;
+    return apiRequest<any>(`/vouchers/shop/${storeId}`, { method: 'GET' });
   },
 
   async createShopVoucher(data: any) {
-    const res = await axios.post(
-      `${API_BASE_URL}/vouchers/shop`,
-      data,
-      authConfig()
-    );
-    return res.data;
+    return apiRequest<any>('/vouchers/shop', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
   },
 
   async updateShopVoucher(voucherId: string, data: any) {
-    const res = await axios.put(
-      `${API_BASE_URL}/vouchers/shop/${voucherId}`,
-      data,
-      authConfig()
-    );
-    return res.data;
+    return apiRequest<any>(`/vouchers/shop/${voucherId}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
   },
 
   async disableShopVoucher(voucherId: string) {
-    const res = await axios.patch(
-      `${API_BASE_URL}/vouchers/shop/${voucherId}/disable`,
-      {},
-      authConfig()
-    );
-    return res.data;
+    return apiRequest<any>(`/vouchers/shop/${voucherId}/disable`, {
+      method: 'PATCH',
+      body: JSON.stringify({}),
+    });
   },
 
   async enableShopVoucher(voucherId: string) {
-    const res = await axios.patch(
-      `${API_BASE_URL}/vouchers/shop/${voucherId}/enable`,
-      {},
-      authConfig()
-    );
-    return res.data;
+    return apiRequest<any>(`/vouchers/shop/${voucherId}/enable`, {
+      method: 'PATCH',
+      body: JSON.stringify({}),
+    });
   },
 
   // =====================
   // CHECKOUT
   // =====================
-// ====================== CLAIM VOUCHER ======================
-async claimVoucher(code: string) {
-  const response = await axios.post('/api/vouchers/claim', { code });
-  return response.data;
-},
 
-// Nếu bạn có hàm saveVoucher thì giữ lại, còn không thì dùng claimVoucher
-async saveVoucher(
-  voucherId: string
-) {
+  // ====================== CLAIM VOUCHER ======================
+  async claimVoucher(code: string) {
+    return apiRequest<any>('/vouchers/claim', {
+      method: 'POST',
+      body: JSON.stringify({ code }),
+    });
+  },
 
-  const response =
-    await axios.post(
-      `${API_BASE_URL}/vouchers/save`,
-      {
-        voucher_id: voucherId
-      },
-      authConfig()
-    );
+  // Nếu bạn có hàm saveVoucher thì giữ lại, còn không thì dùng claimVoucher
+  async saveVoucher(voucherId: string) {
+    return apiRequest<any>('/vouchers/save', {
+      method: 'POST',
+      body: JSON.stringify({ voucher_id: voucherId }),
+    });
+  },
 
-  return response.data;
-},
   async validateVoucher(data: {
     shop_voucher_id?: string | null;
     platform_voucher_id?: string | null;
     subtotal: number;
     shipping_fee?: number;
   }) {
-    const res = await axios.post(
-      `${API_BASE_URL}/vouchers/validate`,
-      data,
-      authConfig()
-    );
-    return res.data.data;
+    return apiRequest<any>('/vouchers/validate', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
   },
-  
 };

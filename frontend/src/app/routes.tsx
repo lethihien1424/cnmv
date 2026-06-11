@@ -51,7 +51,14 @@ export const router = createBrowserRouter([
 
   { path: '/stores', Component: SearchResultsPage },
 
-  { path: '/cart', Component: CartDrawerPage },
+  {
+    path: '/cart',
+    element: (
+      <ProtectedRoute allowedRoles={['customer']}>
+        <CartDrawerPage />
+      </ProtectedRoute>
+    ),
+  },
 
   {
     path: '/checkout',

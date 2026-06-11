@@ -1,6 +1,6 @@
 // frontend/src/app/pages/AddressDropdown.jsx
 import React, { useState, useEffect } from 'react';
-import axios from 'axios';
+import { apiRequest } from '../services/api';
 
 const AddressDropdown = ({
   onAddressChange,
@@ -17,21 +17,21 @@ const AddressDropdown = ({
 
     // Gọi API lấy dữ liệu Tỉnh/Thành
     useEffect(() => {
-        axios.get('http://localhost:5000/api/ghn/provinces')
-            .then(res => setProvinces(res.data.data || []))
+        apiRequest('/ghn/provinces', { method: 'GET' })
+            .then(data => setProvinces(data || []))
             .catch(err => console.error(err));
     }, []);
 
     useEffect(() => {
         if (!selectedProvince) return;
-        axios.get(`http://localhost:5000/api/ghn/districts/${selectedProvince.ProvinceID}`)
-            .then(res => setDistricts(res.data.data || []));
+        apiRequest(`/ghn/districts/${selectedProvince.ProvinceID}`, { method: 'GET' })
+            .then(data => setDistricts(data || []));
     }, [selectedProvince]);
 
     useEffect(() => {
         if (!selectedDistrict) return;
-        axios.get(`http://localhost:5000/api/ghn/wards/${selectedDistrict.DistrictID}`)
-            .then(res => setWards(res.data.data || []));
+        apiRequest(`/ghn/wards/${selectedDistrict.DistrictID}`, { method: 'GET' })
+            .then(data => setWards(data || []));
     }, [selectedDistrict]);
 
     // HÀM QUAN TRỌNG: Nối chuỗi địa chỉ và gửi lên file cha

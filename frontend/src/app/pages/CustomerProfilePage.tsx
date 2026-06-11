@@ -7,17 +7,15 @@ import { Card, CardContent } from '../components/ui/card';
 import { Badge } from '../components/ui/badge';
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '../components/ui/sheet';
 import { ScrollArea } from '../components/ui/scroll-area';
-import axios from 'axios';
 import StoreHeader from '../components/StoreHeader';
 import StoreFooter from '../components/StoreFooter';
-import { API_BASE_URL } from '../services/api';
+import { apiRequest } from '../services/api';
 
 import {
   Bell, User, Ticket, Wallet, CreditCard, Coins,
   ChevronRight, Settings,
 } from 'lucide-react';
 
-const API_URL = '/api';
 
 type DailyXuStatus = {
   xuBalance: number;
@@ -87,10 +85,7 @@ export default function CustomerProfilePage() {
   useEffect(() => {
     const fetchNotifications = async () => {
       try {
-        const response = await axios.get(`${API_URL}/notifications`, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-        const data = response.data.data || response.data || [];
+        const data = await apiRequest<any[]>('/notifications', { method: 'GET' }, token);
         setNotifications(data);
         setUnreadCount(data.filter((n: any) => !n.is_read && !n.read).length);
       } catch { /* silently fail */ }
@@ -106,12 +101,7 @@ export default function CustomerProfilePage() {
     const fetchOrders = async () => {
       if (!token) return;
       try {
-        const res = await fetch(`${API_BASE_URL}/orders/my-orders`, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-        if (!res.ok) return;
-        const json = await res.json();
-        const orders: any[] = json.data ?? json ?? [];
+        const orders = await apiRequest<any[]>('/orders/my-orders', { method: 'GET' }, token);
 
         setOrderCounts({
           pending:   orders.filter(o => o.order_status === 'PENDING').length,
@@ -145,10 +135,7 @@ export default function CustomerProfilePage() {
       if (!token || !user || user.role !== 'customer') return;
       try {
         setDailyXuLoading(true);
-        const response = await axios.get(`${API_URL}/auth/daily-xu/status`, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-        const data = response.data?.data;
+        const data = await apiRequest<any>('/auth/daily-xu/status', { method: 'GET' }, token);
         if (data) {
           setDailyXu({
             xuBalance: Number(data.xuBalance || 0),
@@ -168,11 +155,10 @@ export default function CustomerProfilePage() {
     if (!token || dailyXuLoading || !dailyXu.canClaim) return;
     try {
       setDailyXuLoading(true);
-      const response = await axios.post(
-        `${API_URL}/auth/daily-xu/claim`, {},
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
-      const data = response.data?.data;
+      const data = await apiRequest<any>('/auth/daily-xu/claim', {
+        method: 'POST',
+        body: JSON.stringify({}),
+      }, token);
       setDailyXu(prev => ({
         ...prev,
         xuBalance: Number(data?.xuBalance ?? prev.xuBalance),
@@ -181,11 +167,9 @@ export default function CustomerProfilePage() {
         lastClaimAt: data?.lastClaimAt || new Date().toISOString(),
       }));
       window.alert(`Bạn đã nhận thành công ${Number(data?.dailyAmount || 100)} Xu hôm nay!`);
-    } catch (error) {
+    } catch (error: any) {
       window.alert(
-        axios.isAxiosError(error)
-          ? error.response?.data?.message || 'Không thể nhận Xu lúc này.'
-          : 'Không thể nhận Xu lúc này.'
+        error?.response?.data?.message || error?.message || 'Không thể nhận Xu lúc này.'
       );
     } finally {
       setDailyXuLoading(false);

@@ -6,7 +6,7 @@ import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Textarea } from '../components/ui/textarea';
 import { toast } from 'sonner';
-import axios from 'axios';
+import { apiRequest } from '../services/api';
 import { MapPin, Map as MapIcon, CheckCircle, Loader2 } from 'lucide-react';
 
 // ─── Inline Leaflet map for store location ────────────────────────────────────
@@ -245,10 +245,7 @@ const autoLocateAddress = (
     const fetchStore = async () => {
       try {
         const token = localStorage.getItem('token');
-        const res = await axios.get('/api/stores/my-store', {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-        const s = res.data.data;
+        const s = await apiRequest<any>('/stores/my-store', { method: 'GET' }, token);
         if (s) {
           setFormData({
             store_name:    s.store_name    || '',

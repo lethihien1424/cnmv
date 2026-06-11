@@ -83,7 +83,15 @@ export default function ChatWidget() {
     setIsLoading(true);
 
     try {
-      const response = await sendChatMessage(trimmed);
+      // Detect if user is on a product detail page → send productId as context
+      // so the AI knows what product the user is currently viewing.
+      const pathMatch = window.location.pathname.match(/^\/product\/([0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})$/i);
+      const currentProductId = pathMatch ? pathMatch[1] : null;
+      if (currentProductId) {
+        console.log('[ChatWidget] User on product page, sending context.productId:', currentProductId);
+      }
+
+      const response = await sendChatMessage(trimmed, { productId: currentProductId });
       const assistantMsg: ChatMessage = {
         id: `assistant-${Date.now()}`,
         role: 'assistant',

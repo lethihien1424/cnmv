@@ -1,6 +1,7 @@
 ﻿import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { io, type Socket } from 'socket.io-client';
+import { BACKEND_URL } from '../services/api';
 import { useAuth } from '../contexts/AuthContext';
 import { Button } from '../components/ui/button';
 import { Switch } from '../components/ui/switch';
@@ -143,7 +144,7 @@ export default function SellerDashboard() {
   useState<Order[]>([]);
   
 const [selectedOrderDetail, setSelectedOrderDetail] =
-  useState<Order | null>(null);
+  useState<any | null>(null);
   // STATE CHO MODAL FLASH SALE
   const [flashSaleModal, setFlashSaleModal] = useState<{
     isOpen: boolean;
@@ -197,7 +198,7 @@ const [selectedOrderDetail, setSelectedOrderDetail] =
     size: '',
     color: '',
     type: '',
-    is_bulky: '',
+    is_bulky: false,
   });
   const [productImagePreviews, setProductImagePreviews] = useState<string[]>([]);
 
@@ -389,7 +390,6 @@ setRecentOrders(orders);
     try {
       const sellerProducts = await getSellerProducts({
         userId: user?.id || '',
-        token,
         storeId: user?.businessStoreId || user?.c2cStoreId || '',
         storeType: user?.role === 'business' ? 'B2C' : 'C2C',
       });
@@ -457,7 +457,7 @@ setRecentOrders(orders);
     setInboxLoading(true);
     setInboxError(null);
 
-    const socket = io('http://localhost:5000', {
+    const socket = io(BACKEND_URL || window.location.origin, {
       transports: ['websocket', 'polling'],
       withCredentials: true,
     });
@@ -596,7 +596,7 @@ setRecentOrders(orders);
       size: '',
       color: '',
       type: '',
-      is_bulky: '',
+      is_bulky: false,
     });
     setProductVariants([{ color: '', size: '', price: 0, stock_quantity: 0 }]);
     setProductSpecifications([{ label: '', value: '' }]);
@@ -827,10 +827,10 @@ setRecentOrders(orders);
     };
 
     if (editingProduct) {
-      await updateProduct(editingProduct.id, submitData);
+      await updateProduct(editingProduct.id, submitData as any, token!);
       toast.success("Cập nhật sản phẩm thành công!");
     } else {
-      await createProduct(submitData);
+      await createProduct(submitData as any, token!);
       toast.success("Thêm sản phẩm thành công!");
     }
     
@@ -998,11 +998,11 @@ const handleSubmitProduct = async (event: React.FormEvent<HTMLFormElement>) => {
       });
     }
 
-    // 5. Đẩy danh sách file ảnh biến thể (nếu có)
+    // 5. Đẩy file ảnh biến thể theo index (backend sẽ map đúng variant)
     if (variantUploadFiles && variantUploadFiles.length > 0) {
-      variantUploadFiles.forEach((file) => {
+      variantUploadFiles.forEach((file, index) => {
         if (file) {
-          formData.append('images', file);
+          formData.append(`variantImage_${index}`, file);
         }
       });
     }
@@ -1015,10 +1015,10 @@ const handleSubmitProduct = async (event: React.FormEvent<HTMLFormElement>) => {
 
     // Gọi API xử lý
     if (editingProduct) {
-      await updateProduct(editingProduct.id, formData as any, token);
+      await updateProduct(editingProduct.id, formData as any, token!);
       toast.success('Cập nhật sản phẩm thành công!');
     } else {
-      await createProduct(formData as any, token);
+      await createProduct(formData as any, token!);
       toast.success('Đăng bán sản phẩm thành công!');
     }
 
@@ -1057,6 +1057,39 @@ const handleSubmitProduct = async (event: React.FormEvent<HTMLFormElement>) => {
     }
 
     return `${formatMoney(minPrice)} - ${formatMoney(maxPrice)}`;
+  };
+
+  // Hiển thị ảnh sản phẩm: ưu tiên ảnh chính → ảnh biến thể (từ variants column) → ảnh biến thể (từ description metadata) → placeholder
+  const getDisplayImage = (product: Product | any) => {
+    // Ưu tiên 1: Ảnh chính (nếu có)
+    if (product.images && Array.isArray(product.images) && product.images.length > 0) {
+      return getAbsoluteImageUrl(product.images[0]);
+    }
+
+    // Ưu tiên 2: Tìm trong cột variants độc lập (nếu API trả về)
+    let safeVariants: any[] = [];
+    if (product.variants) {
+      if (typeof product.variants === 'string') {
+        try { safeVariants = JSON.parse(product.variants); } catch (e) { /* ignore */ }
+      } else if (Array.isArray(product.variants)) {
+        safeVariants = product.variants;
+      }
+    }
+
+    // Ưu tiên 3: Nếu không có, dùng hàm parse để giải mã chuỗi từ mô tả
+    if (safeVariants.length === 0 && product.description) {
+      const metadata = parseDescriptionMetadata(product.description);
+      safeVariants = metadata.variants || [];
+    }
+
+    // Tìm biến thể ĐẦU TIÊN có chứa ảnh
+    const firstVariantWithImage = safeVariants.find((v: any) => v.image_url && v.image_url.trim() !== '');
+    if (firstVariantWithImage) {
+      return getAbsoluteImageUrl(firstVariantWithImage.image_url);
+    }
+
+    // Nếu hoàn toàn không có ảnh nào
+    return 'https://placehold.co/200x200?text=No+Image';
   };
 
   // MỞ MODAL CÀI ĐẶT FLASH SALE
@@ -1732,7 +1765,7 @@ const handleSubmitProduct = async (event: React.FormEvent<HTMLFormElement>) => {
                                   }
                                   className="w-full px-3 py-2 border rounded-lg"
                                 />
-                                {(variantImagePreviews[index] || variant.image_url) && (
+                                {(variantImagePreviews[index] || getAbsoluteImageUrl(variant.image_url)) && (
                                   <img
                                     src={variantImagePreviews[index] || getAbsoluteImageUrl(variant.image_url)}
                                     alt="preview"
@@ -1848,8 +1881,8 @@ const handleSubmitProduct = async (event: React.FormEvent<HTMLFormElement>) => {
     onChange={(event) =>
       setProductForm((prev) => ({
         ...prev,
-        // ĐÂY LÀ CHỖ ĐANG BỊ LỖI GHI ĐÈ ẢNH
-        images: event.target.files ? Array.from(event.target.files) : [], 
+        // Nối mảng ảnh cũ với ảnh mới chọn (không ghi đè)
+        images: event.target.files ? [...prev.images, ...Array.from(event.target.files)] : prev.images,
       }))
     }
     className="w-full px-3 py-2 border rounded-lg"
@@ -1946,9 +1979,9 @@ const handleSubmitProduct = async (event: React.FormEvent<HTMLFormElement>) => {
                           className="flex items-center gap-4 p-4 border rounded-lg hover:bg-gray-50 transition-all"
                         >
                           <img
-                            src={getAbsoluteImageUrl(product.images?.[0]) || 'https://placehold.co/200x200?text=No+Image'}
+                            src={getDisplayImage(product)}
                             alt={product.name}
-                            className="size-16 object-cover rounded-lg"
+                            className="size-16 object-cover rounded-lg border border-gray-200"
                           />
                           <div className="flex-1">
                             <h3 className="font-medium mb-1 flex items-center gap-2">
@@ -2080,7 +2113,7 @@ const handleSubmitProduct = async (event: React.FormEvent<HTMLFormElement>) => {
                                 onClick={() => navigate(`/product/${product.id}`)}
                               >
                                 <img
-                                  src={getAbsoluteImageUrl(product.images?.[0]) || 'https://placehold.co/400x400?text=No+Image'}
+                                  src={getDisplayImage(product)}
                                   alt={product.name}
                                   className="h-48 w-full object-cover"
                                 />

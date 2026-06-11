@@ -7,7 +7,7 @@ import { Card, CardContent } from '../components/ui/card';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { Separator } from '../components/ui/separator';
-import axios from 'axios';
+import { apiRequest } from '../services/api';
 import {
   ChevronLeft,
   ChevronRight,
@@ -82,10 +82,9 @@ export default function SellerOnboardingPage() {
       setSelectedAddress(addrObj);
     } else {
       // Gọi API lấy lại detail nếu component chỉ trả ra ID
-      axios.get('http://localhost:5000/api/addresses', { headers: { Authorization: `Bearer ${token}` } })
-        .then(res => {
-          const list = res.data.data || res.data;
-          const a = list.find((x: any) => x.id === id);
+      apiRequest<any[]>('/addresses', { method: 'GET' }, token)
+        .then(list => {
+          const a = (Array.isArray(list) ? list : []).find((x: any) => x.id === id);
           if (a) setSelectedAddress(a);
         }).catch(err => console.error(err));
     }
@@ -131,13 +130,11 @@ export default function SellerOnboardingPage() {
           store_name: shopName.trim(),
         };
 
-        const headers = { Authorization: `Bearer ${token}` };
-
         try {
-          await axios.post('http://localhost:5000/api/stores/check-c2c-availability', payload, { headers });
+          await apiRequest('/stores/check-c2c-availability', { method: 'POST', body: JSON.stringify(payload) }, token);
         } catch (primaryError: any) {
           if (primaryError?.response?.status === 404) {
-            await axios.post('http://localhost:5000/api/admin/check-c2c-availability', payload, { headers });
+            await apiRequest('/admin/check-c2c-availability', { method: 'POST', body: JSON.stringify(payload) }, token);
           } else {
             throw primaryError;
           }
@@ -207,11 +204,10 @@ export default function SellerOnboardingPage() {
         verifyFormData.append('front_id_image', frontIdFile);
         verifyFormData.append('back_id_image', backIdFile);
 
-        await axios.post(
-          'http://localhost:5000/api/stores/verify-c2c-identity',
-          verifyFormData,
-          { headers: { Authorization: `Bearer ${token}` } }
-        );
+        await apiRequest('/stores/verify-c2c-identity', {
+          method: 'POST',
+          body: verifyFormData,
+        }, token);
 
         setIdentityVerifySuccess('CCCD hợp lệ và khớp thông tin. Bạn có thể tiếp tục.');
       } catch (error: any) {
@@ -269,13 +265,10 @@ export default function SellerOnboardingPage() {
       formData.append('front_id_image', frontIdFile);
       formData.append('back_id_image', backIdFile);
 
-      const response = await axios.post(
-        'http://localhost:5000/api/stores/activate-c2c',
-        formData,
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
-
-      const createdStore = response.data?.data;
+      const createdStore = await apiRequest<any>('/stores/activate-c2c', {
+        method: 'POST',
+        body: formData,
+      }, token);
 
       if (user?.role === 'customer') {
         updateUser({

@@ -9,6 +9,7 @@ import { Input } from './ui/input';
 import { getCategories, type Category } from '../services/productService';
 import { cartAPI } from '../services/cartService';
 import { getCategoryIcon, guessCategoryIcon } from '../utils/categoryIcon';
+import { toast } from 'sonner';
 import {
   ChevronDown, Heart, LogOut, Menu,
   Search, ShoppingCart, Store, User,
@@ -112,6 +113,16 @@ export default function StoreHeader({
   }, []);
 
   const handleLogout = () => { logout(); navigate('/login'); };
+
+  const handleOpenCart = () => {
+    if (!user) {
+      toast.error('Vui lòng đăng nhập để mua hàng');
+      navigate('/login');
+      return;
+    }
+
+    setCartOpen(true);
+  };
 
   const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -288,7 +299,7 @@ export default function StoreHeader({
                   <Button
                     variant="outline"
                     className="relative border-cyan-200 text-cyan-700 hover:border-cyan-500 hover:text-cyan-600 hover:bg-cyan-50 transition-colors gap-2 rounded-full h-10 px-4"
-                    onClick={() => setCartOpen(true)}
+                    onClick={handleOpenCart}
                   >
                     <ShoppingCart className="size-5" />
                     <span className="font-semibold hidden sm:inline-block">Giỏ hàng</span>

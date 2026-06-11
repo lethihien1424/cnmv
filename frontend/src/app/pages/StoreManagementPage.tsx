@@ -17,11 +17,9 @@ import {
   scanBusinessLicense,
 } from '../services/adminStoreService';
 import { toast } from 'sonner';
-import axios from 'axios';
+import { apiRequest, getAbsoluteImageUrl } from '../services/api';
 import { Store as StoreIcon, Check, X, Clock, Ban, Building2, FileText, Loader2, Eye, Zap, Bot, ScanLine, AlertTriangle, CheckCircle2, XCircle, ZoomIn } from 'lucide-react';
 import { format } from 'date-fns';
-
-const API_URL = '/api';
 
 export default function StoreManagementPage() {
   const { user, token } = useAuth();
@@ -200,15 +198,14 @@ export default function StoreManagementPage() {
 
     try {
       // Gọi API đã tạo ở Backend
-      await axios.put(
-        `${API_URL}/products/${product.id}/flash-sale`,
-        {
+      await apiRequest(`/products/${product.id}/flash-sale`, {
+        method: 'PUT',
+        body: JSON.stringify({
           is_flash_sale: isFlashSale,
           flash_sale_price: isFlashSale ? Number(price) : null,
           flash_sale_stock: isFlashSale ? Number(stock) : 0,
-        },
-        { headers: { Authorization: `Bearer ${token}` } } // Truyền token nếu route cần
-      );
+        }),
+      }, token);
 
       toast.success("Đã cập nhật Flash Sale thành công");
       
@@ -219,7 +216,7 @@ export default function StoreManagementPage() {
       
       setFlashSaleModal(prev => ({ ...prev, isOpen: false }));
     } catch (error: any) {
-      toast.error(error.response?.data?.message || "Lỗi khi cập nhật Flash Sale");
+      toast.error(error.response?.data?.message || error.message || "Lỗi khi cập nhật Flash Sale");
     } finally {
       setFlashSaleModal(prev => ({ ...prev, loading: false }));
     }
@@ -367,12 +364,12 @@ export default function StoreManagementPage() {
                             {/* Thumbnail ảnh GPKD — click để mở modal */}
                             {store.business_license_image_url ? (
                               <button
-                                onClick={() => setImagePreview(store.business_license_image_url)}
+                                onClick={() => setImagePreview(getAbsoluteImageUrl(store.business_license_image_url))}
                                 title="Click để xem ảnh GPKD"
                                 className="block relative group"
                               >
                                 <img
-                                  src={store.business_license_image_url}
+                                  src={getAbsoluteImageUrl(store.business_license_image_url)}
                                   alt="GPKD"
                                   className="w-16 h-16 object-cover rounded border border-gray-200 group-hover:border-violet-400 group-hover:shadow-md transition-all"
                                   onError={(e) => {
@@ -510,7 +507,7 @@ export default function StoreManagementPage() {
                           </div>
                           {selectedStore.business_license_image_url && (
                             <button
-                              onClick={() => setImagePreview(selectedStore.business_license_image_url)}
+                              onClick={() => setImagePreview(getAbsoluteImageUrl(selectedStore.business_license_image_url))}
                               className="inline-flex items-center gap-1.5 text-xs text-violet-600 hover:text-violet-800 border border-violet-200 hover:border-violet-400 bg-white rounded-lg px-3 py-1.5 transition-all"
                             >
                               <Eye className="size-3.5" />
@@ -521,11 +518,11 @@ export default function StoreManagementPage() {
 
                         {selectedStore.business_license_image_url ? (
                           <button
-                            onClick={() => setImagePreview(selectedStore.business_license_image_url)}
+                            onClick={() => setImagePreview(getAbsoluteImageUrl(selectedStore.business_license_image_url))}
                             className="w-full block"
                           >
                             <img
-                              src={selectedStore.business_license_image_url}
+                              src={getAbsoluteImageUrl(selectedStore.business_license_image_url)}
                               alt="Ảnh GPKD"
                               className="w-full max-h-72 object-contain rounded-lg border border-gray-200 bg-white hover:border-violet-400 hover:shadow-lg transition-all cursor-zoom-in"
                               onError={(e) => {

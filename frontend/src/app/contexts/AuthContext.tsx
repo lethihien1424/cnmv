@@ -1,9 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import axios from 'axios';
+import { apiRequest } from '../services/api';
 import { getMyStoreStatus } from '../services/storeStatusService';
 import { toast } from 'sonner';
-
-const API_URL = '/api';
 
 export type UserRole = 'admin' | 'business' | 'customer';
 
@@ -116,7 +114,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setToken(savedToken);
       const parsedUser = JSON.parse(savedUser) as User;
       setUser(parsedUser);
-      axios.defaults.headers.common['Authorization'] = `Bearer ${savedToken}`;
       syncStoreStatus(parsedUser, savedToken).then((syncedUser) => {
         setUser(syncedUser);
         localStorage.setItem('user', JSON.stringify(syncedUser));
@@ -136,8 +133,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const login = async (email: string, password: string) => {
     try {
       setIsLoading(true);
-      const response = await axios.post(`${API_URL}/auth/login`, { email, password });
-      const { token: apiToken, user: apiUser } = response.data.data;
+      const data = await apiRequest<any>('/auth/login', {
+        method: 'POST',
+        body: JSON.stringify({ email, password }),
+      });
+      const { token: apiToken, user: apiUser } = data;
       const mappedUser: User = {
         id: apiUser.id,
         username: apiUser.username,
@@ -152,9 +152,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setToken(apiToken);
       localStorage.setItem('token', apiToken);
       localStorage.setItem('user', JSON.stringify(syncedUser));
-      axios.defaults.headers.common['Authorization'] = `Bearer ${apiToken}`;
     } catch (error: any) {
-      throw new Error(error.response?.data?.message || 'Đăng nhập thất bại');
+      throw new Error(error.response?.data?.message || error.message || 'Đăng nhập thất bại');
     } finally { setIsLoading(false); }
   };
 
@@ -163,7 +162,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setToken(null);
     localStorage.removeItem('token');
     localStorage.removeItem('user');
-    delete axios.defaults.headers.common['Authorization'];
 
     // 🌟 Clear chat state & close chat widget on logout
     window.dispatchEvent(new CustomEvent('clear-chat'));
@@ -172,9 +170,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const registerCustomer = async (username: string, email: string, password: string) => {
     try {
       setIsLoading(true);
-      await axios.post(`${API_URL}/auth/register`, { username, email, password, role: 'Customer' });
+      await apiRequest('/auth/register', {
+        method: 'POST',
+        body: JSON.stringify({ username, email, password, role: 'Customer' }),
+      });
     } catch (error: any) {
-      throw new Error(error.response?.data?.message || 'Đăng ký thất bại');
+      throw new Error(error.response?.data?.message || error.message || 'Đăng ký thất bại');
     } finally { setIsLoading(false); }
   };
 
@@ -190,9 +191,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       formData.append('business_license', businessLicense);
       formData.append('tax_code', taxCode);
       if (options?.businessLicenseImage) formData.append('business_license_image', options.businessLicenseImage);
-      await axios.post(`${API_URL}/auth/register`, formData, { headers: { 'Content-Type': 'multipart/form-data' } });
+      await apiRequest('/auth/register', { method: 'POST', body: formData });
     } catch (error: any) {
-      throw new Error(error.response?.data?.message || 'Đăng ký thất bại');
+      throw new Error(error.response?.data?.message || error.message || 'Đăng ký thất bại');
     } finally { setIsLoading(false); }
   };
 
@@ -207,12 +208,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   longitude?: number | null;
 }) => {
     try {
-      const response = await axios.put(`${API_URL}/stores/update-info`, data);
+      const result = await apiRequest<any>('/stores/update-info', {
+        method: 'PUT',
+        body: JSON.stringify(data),
+      });
       updateUser({ storeName: data.store_name });
       toast.success("Cập nhật thông tin shop thành công!");
-      return response.data;
+      return result;
     } catch (error: any) {
-      toast.error(error.response?.data?.message || "Lỗi cập nhật");
+      toast.error(error.response?.data?.message || error.message || "Lỗi cập nhật");
       throw error;
     }
   };
@@ -221,16 +225,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (!user || user.role !== 'customer') throw new Error('Yêu cầu quyền Customer');
     try {
       setIsLoading(true);
-      const response = await axios.post(`${API_URL}/stores/activate-c2c`, {
-        store_name: storeName,
-        description,
-        address: options?.address || '',
-        policy_accepted: options?.policyAccepted === true,
+      const result = await apiRequest<any>('/stores/activate-c2c', {
+        method: 'POST',
+        body: JSON.stringify({
+          store_name: storeName,
+          description,
+          address: options?.address || '',
+          policy_accepted: options?.policyAccepted === true,
+        }),
       });
       updateUser({ hasC2CStore: true, storeName: storeName, storeStatus: 'APPROVED' });
-      return response.data;
+      return result;
     } catch (error: any) {
-      throw new Error(error.response?.data?.message || 'Kích hoạt thất bại');
+      throw new Error(error.response?.data?.message || error.message || 'Kích hoạt thất bại');
     } finally { setIsLoading(false); }
   };
 

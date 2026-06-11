@@ -1,10 +1,7 @@
 // frontend/src/app/services/api.ts
 const DEFAULT_API_BASE_URL = '';
 
-const rawApiBaseUrl =
-  typeof import.meta !== 'undefined' && (import.meta as ImportMeta & { env?: { VITE_API_URL?: string } }).env?.VITE_API_URL
-    ? (import.meta as ImportMeta & { env?: { VITE_API_URL?: string } }).env!.VITE_API_URL!
-    : DEFAULT_API_BASE_URL;
+const rawApiBaseUrl = (import.meta as any).env?.VITE_API_URL || DEFAULT_API_BASE_URL;
 
 const normalizedApiBaseUrl = rawApiBaseUrl.replace(/\/+$/, '');
 
@@ -29,6 +26,35 @@ export function getAbsoluteImageUrl(path: string | null | undefined): string {
   }
   const cleanPath = path.startsWith('/') ? path : `/${path}`;
   return `${BACKEND_URL}${cleanPath}`;
+}
+
+/**
+ * Get display image for a product with variant fallback.
+ * Priority: product main image > first variant image > placeholder
+ */
+export function getDisplayImage(product: any): string {
+  // 1. Primary: first product image
+  if (product.images && Array.isArray(product.images) && product.images.length > 0) {
+    const url = getAbsoluteImageUrl(product.images[0]);
+    if (url) return url;
+  }
+
+  // 2. Fallback: first variant image
+  let safeVariants: any[] = [];
+  if (product.variants) {
+    if (typeof product.variants === 'string') {
+      try { safeVariants = JSON.parse(product.variants); } catch { safeVariants = []; }
+    } else if (Array.isArray(product.variants)) {
+      safeVariants = product.variants;
+    }
+  }
+  if (safeVariants.length > 0 && safeVariants[0].image_url) {
+    const url = getAbsoluteImageUrl(safeVariants[0].image_url);
+    if (url) return url;
+  }
+
+  // 3. Default placeholder
+  return 'https://placehold.co/400x400?text=No+Image';
 }
 
 type ApiErrorResponse = {
@@ -65,7 +91,9 @@ export async function apiRequest<T>(
 
   if (!response.ok) {
     const errorMessage = (payload as ApiErrorResponse | null)?.message || 'Request failed';
-    throw new Error(errorMessage);
+    const error: any = new Error(errorMessage);
+    error.response = { status: response.status, data: payload };
+    throw error;
   }
 
   if (payload && typeof payload === 'object' && 'data' in payload) {

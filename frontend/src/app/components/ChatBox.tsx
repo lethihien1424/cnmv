@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { io, type Socket } from 'socket.io-client';
+import { BACKEND_URL } from '../services/api';
 
 type ChatSender = 'USER' | 'STORE';
 
@@ -27,7 +28,7 @@ export default function ChatBox({ userId, storeId, currentUserRole, onClose, lay
   const socketRef = useRef<Socket | null>(null);
 
   useEffect(() => {
-    const socket = io('http://localhost:5000', {
+    const socket = io(BACKEND_URL || window.location.origin, {
       transports: ['websocket', 'polling'],
       withCredentials: true,
     });

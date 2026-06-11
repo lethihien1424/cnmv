@@ -39,6 +39,7 @@ import {
   Settings2,
   MessageSquare,
 } from 'lucide-react';
+import { toast } from 'sonner';
 
 export default function ProductDetailPage() {
   const navigate = useNavigate();
@@ -182,8 +183,25 @@ useEffect(() => {
   );
 
   const variants = useMemo(() => {
+    // Parse variants từ cột product.variants (DB column) để bổ sung image_url
+    const rawVariants = (product as any).variants;
+    let dbVariants: any[] = [];
+    if (rawVariants) {
+      if (typeof rawVariants === 'string') {
+        try { dbVariants = JSON.parse(rawVariants); } catch { dbVariants = []; }
+      } else if (Array.isArray(rawVariants)) {
+        dbVariants = rawVariants;
+      }
+    }
+
     if (parsedMetadata.variants.length > 0) {
-      return parsedMetadata.variants;
+      // Merge image_url từ DB variants vào description-parsed variants
+      return parsedMetadata.variants.map((v, i) => {
+        if (!v.image_url && dbVariants[i]?.image_url) {
+          return { ...v, image_url: dbVariants[i].image_url };
+        }
+        return v;
+      });
     }
 
     return [
@@ -195,7 +213,7 @@ useEffect(() => {
         image_url: product.images?.[0],
       },
     ];
-  }, [parsedMetadata.variants, product.condition, product.price, product.stock_quantity]);
+  }, [parsedMetadata.variants, product.condition, product.price, product.stock_quantity, (product as any).variants]);
 
   const resolveVariantImage = (variant: (typeof variants)[number]) => {
     if (
@@ -393,6 +411,7 @@ useEffect(() => {
   // ==================== HÀM THÊM VÀO GIỎ HÀNG ====================
   const handleAddToCart = async () => {
   if (!user) {
+    toast.error('Vui lòng đăng nhập để mua hàng');
     navigate('/login');
     return;
   }
@@ -464,6 +483,7 @@ useEffect(() => {
   // ==================== MUA NGAY ====================
   const handleBuyNow = () => {
     if (!user) {
+      toast.error('Vui lòng đăng nhập để mua hàng');
       navigate('/login');
       return;
     }

@@ -1,5 +1,5 @@
 // frontend/src/app/services/orderService.ts
-import { API_BASE_URL } from "./api";
+import { apiRequest } from "./api";
 
 export type OrderDetail = {
   id: string;
@@ -95,24 +95,16 @@ export type WalletTopupResponse = {
   receiver_bank_name?: string | null;
   receiver_account_number?: string | null;
 };
-const getToken = () => localStorage.getItem("token");
 
 export const orderAPI = {
     getMyWallet: async (): Promise<{
     wallet: Wallet;
     transactions: WalletTransaction[];
   }> => {
-    const res = await fetch(`${API_BASE_URL}/orders/my-wallet`, {
-      headers: { Authorization: `Bearer ${getToken()}` },
-    });
-
-    const json = await res.json();
-
-    if (!res.ok || !json.success) {
-      throw new Error(json.message || "Không tải được ví");
-    }
-
-    return json.data;
+    return apiRequest<{ wallet: Wallet; transactions: WalletTransaction[] }>(
+      '/orders/my-wallet',
+      { method: 'GET' }
+    );
   },
 
   linkWalletBankAccount: async (payload: {
@@ -121,164 +113,77 @@ export const orderAPI = {
     bank_account_number: string;
     bank_account_holder: string;
   }): Promise<Wallet> => {
-    const res = await fetch(`${API_BASE_URL}/orders/wallet/bank-account`, {
+    return apiRequest<Wallet>('/orders/wallet/bank-account', {
       method: "PUT",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${getToken()}`,
-      },
       body: JSON.stringify(payload),
     });
-
-    const json = await res.json();
-
-    if (!res.ok || !json.success) {
-      throw new Error(json.message || "Liên kết tài khoản ngân hàng thất bại");
-    }
-
-    return json.data;
   },
 
   createWalletTopup: async (amount: number): Promise<WalletTopupResponse> => {
-    const res = await fetch(`${API_BASE_URL}/orders/wallet/topup`, {
+    return apiRequest<WalletTopupResponse>('/orders/wallet/topup', {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${getToken()}`,
-      },
       body: JSON.stringify({ amount }),
     });
-
-    const json = await res.json();
-
-    if (!res.ok || !json.success) {
-      throw new Error(json.message || "Tạo mã QR nạp ví thất bại");
-    }
-
-    return json.data;
   },
 
   getWalletTopupStatus: async (
     transactionId: string
   ): Promise<WalletTransaction> => {
-    const res = await fetch(
-      `${API_BASE_URL}/orders/wallet/topup/${transactionId}/status`,
-      {
-        headers: { Authorization: `Bearer ${getToken()}` },
-      }
+    return apiRequest<WalletTransaction>(
+      `/orders/wallet/topup/${transactionId}/status`,
+      { method: 'GET' }
     );
-
-    const json = await res.json();
-
-    if (!res.ok || !json.success) {
-      throw new Error(json.message || "Không tải được trạng thái nạp ví");
-    }
-
-    return json.data;
   },
 
   createWalletWithdraw: async (amount: number): Promise<WalletTransaction> => {
-    const res = await fetch(`${API_BASE_URL}/orders/wallet/withdraw`, {
+    return apiRequest<WalletTransaction>('/orders/wallet/withdraw', {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${getToken()}`,
-      },
       body: JSON.stringify({ amount }),
     });
-
-    const json = await res.json();
-
-    if (!res.ok || !json.success) {
-      throw new Error(json.message || "Rút tiền thất bại");
-    }
-
-    return json.data;
   },
   // STORE OWNER
   getStoreOrders: async (storeId: string): Promise<Order[]> => {
-    const res = await fetch(`${API_BASE_URL}/orders/store/${storeId}`, {
-      headers: { Authorization: `Bearer ${getToken()}` },
-    });
-    if (!res.ok) throw new Error("Không tải được đơn hàng");
-    const json = await res.json();
-    return json.data || [];
+    const data = await apiRequest<Order[]>(`/orders/store/${storeId}`, { method: 'GET' });
+    return Array.isArray(data) ? data : [];
   },
 
   updateStatus: async (orderId: string, status: string): Promise<Order> => {
-    const res = await fetch(`${API_BASE_URL}/orders/${orderId}/status`, {
+    return apiRequest<Order>(`/orders/${orderId}/status`, {
       method: "PUT",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${getToken()}`,
-      },
       body: JSON.stringify({ status }),
     });
-    if (!res.ok) {
-      const err = await res.json();
-      throw new Error(err.message || "Cập nhật thất bại");
-    }
-    const json = await res.json();
-    return json.data;
   },
 
   cancelOrder: async (orderId: string): Promise<Order> => {
-    const res = await fetch(`${API_BASE_URL}/orders/${orderId}`, {
+    return apiRequest<Order>(`/orders/${orderId}`, {
       method: "DELETE",
-      headers: { Authorization: `Bearer ${getToken()}` },
     });
-    if (!res.ok) {
-      const err = await res.json();
-      throw new Error(err.message || "Hủy đơn thất bại");
-    }
-    const json = await res.json();
-    return json.data;
   },
 
   cancelCustomerOrder: async (
     orderId: string,
     cancelReason = "CUSTOMER_CANCELLED",
   ): Promise<Order> => {
-    const res = await fetch(`${API_BASE_URL}/orders/${orderId}/cancel`, {
+    return apiRequest<Order>(`/orders/${orderId}/cancel`, {
       method: "PATCH",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${getToken()}`,
-      },
       body: JSON.stringify({
         cancel_reason: cancelReason,
         cancelled_by: "CUSTOMER",
       }),
     });
-    if (!res.ok) {
-      const err = await res.json();
-      throw new Error(err.message || "Huy don that bai");
-    }
-    const json = await res.json();
-    return json.data;
   },
 
   getSepayPaymentStatus: async (
     paymentId: string,
   ): Promise<SepayPaymentStatus> => {
-    const res = await fetch(`${API_BASE_URL}/payment/sepay/${paymentId}/status`, {
-      headers: { Authorization: `Bearer ${getToken()}` },
+    return apiRequest<SepayPaymentStatus>(`/payment/sepay/${paymentId}/status`, {
+      method: 'GET',
     });
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({}));
-      throw new Error(err.message || "Khong tai duoc trang thai thanh toan");
-    }
-    const json = await res.json();
-    return json.data;
   },
 
   // CUSTOMER
   getMyOrders: async (): Promise<Order[]> => {
-    const res = await fetch(`${API_BASE_URL}/orders/my-orders`, {
-      headers: { Authorization: `Bearer ${getToken()}` },
-    });
-    if (!res.ok) throw new Error("Không tải được đơn hàng");
-    const json = await res.json();
-    return json.data || [];
+    const data = await apiRequest<Order[]>('/orders/my-orders', { method: 'GET' });
+    return Array.isArray(data) ? data : [];
   },
 };

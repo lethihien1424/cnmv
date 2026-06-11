@@ -1,5 +1,5 @@
 // D:\CongNgheMoi-hien\CongNgheMoi\frontend\src\app\services\cartService.ts
-import { API_BASE_URL } from "./api";
+import { apiRequest } from "./api";
 
 export type CartDetail = {
   id: string;
@@ -22,21 +22,10 @@ export type CartDetail = {
   };
 };
 
-const getToken = () => localStorage.getItem("token");
-
-const authHeaders = () => ({
-  "Content-Type": "application/json",
-  Authorization: `Bearer ${getToken()}`,
-});
-
 export const cartAPI = {
   // GET /api/cart/
   getCart: async (): Promise<CartDetail[]> => {
-    const res = await fetch(`${API_BASE_URL}/cart`, {
-      headers: { Authorization: `Bearer ${getToken()}` },
-    });
-    if (!res.ok) throw new Error("Không tải được giỏ hàng");
-    const data = await res.json();
+    const data = await apiRequest<CartDetail[]>('/cart', { method: 'GET' });
     return Array.isArray(data) ? data : [];
   },
 
@@ -47,9 +36,8 @@ export const cartAPI = {
     size?: string | null,
     color?: string | null
   ) => {
-    const res = await fetch(`${API_BASE_URL}/cart/add`, {
+    return apiRequest('/cart/add', {
       method: "POST",
-      headers: authHeaders(),
       body: JSON.stringify({
         product_id: productId,
         quantity,
@@ -57,13 +45,6 @@ export const cartAPI = {
         color: color ?? null,
       }),
     });
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({}));
-      throw new Error(
-        (err as { message?: string }).message || "Không thêm được vào giỏ hàng"
-      );
-    }
-    return res.json();
   },
 
   // PUT /api/cart/update
@@ -73,9 +54,8 @@ export const cartAPI = {
     size?: string | null,
     color?: string | null
   ) => {
-    const res = await fetch(`${API_BASE_URL}/cart/update`, {
+    return apiRequest('/cart/update', {
       method: "PUT",
-      headers: authHeaders(),
       body: JSON.stringify({
         product_id: productId,
         quantity,
@@ -83,8 +63,6 @@ export const cartAPI = {
         color: color ?? null,
       }),
     });
-    if (!res.ok) throw new Error("Không cập nhật được số lượng");
-    return res.json();
   },
 
   // Xóa item: dùng update quantity = 0, truyền đủ size + color để backend xác định đúng dòng

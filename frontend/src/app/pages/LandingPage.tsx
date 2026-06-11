@@ -1,5 +1,6 @@
 ﻿import React from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../contexts/AuthContext';
 import { Button } from '../components/ui/button';
 import { Card, CardContent } from '../components/ui/card';
 import { Badge } from '../components/ui/badge';
@@ -8,7 +9,10 @@ import HeroCarousel from '../components/HeroCarousel';
 import StoreHeader from '../components/StoreHeader';
 import StoreFooter from '../components/StoreFooter';
 import voucherService from '../services/voucherService';
+import { toast } from 'sonner';
 import { getCategories, getProducts, type Category, type Product } from '../services/productService';
+import { getDisplayImage } from '../services/api';
+import { cartAPI } from '../services/cartService';
 import { getCategoryIcon, guessCategoryIcon } from '../utils/categoryIcon';
 import { 
   Search,
@@ -27,6 +31,7 @@ import {
 
 export default function LandingPage() {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const [searchValue, setSearchValue] = React.useState('');
   const [products, setProducts] = React.useState<Product[]>([]);
   const [categories, setCategories] = React.useState<Category[]>([]);
@@ -59,22 +64,31 @@ const [voucherLoading, setVoucherLoading] =
       setCategoriesLoading(true);
 
       try {
-       const [
-        allProducts,
-        allCategories,
-        allVouchers,
-        userVouchers
-      ] = await Promise.all([
-        getProducts({ limit: 100 }),
-        getCategories(),
-        voucherService.getPublicPlatformVouchers(),
-        voucherService.getMyVouchers()
-      ]);
+        const hasToken = !!localStorage.getItem('token');
+
+        const [
+          allProducts,
+          allCategories,
+          allVouchers,
+        ] = await Promise.all([
+          getProducts({ limit: 100 }),
+          getCategories(),
+          voucherService.getPublicPlatformVouchers().catch(() => []),
+        ]);
 
         setProducts(allProducts);
         setCategories(allCategories);
         setPublicVouchers(allVouchers || []);
-        setMyVouchers(userVouchers || []);
+
+        // Only fetch user vouchers when logged in
+        if (hasToken) {
+          try {
+            const userVouchers = await voucherService.getMyVouchers();
+            setMyVouchers(userVouchers || []);
+          } catch {
+            setMyVouchers([]);
+          }
+        }
       } catch {
         setProducts([]);
         setCategories([]);
@@ -105,6 +119,27 @@ const [voucherLoading, setVoucherLoading] =
     const query = searchValue.trim();
     setActiveSearchQuery(query);
     document.getElementById('homepage-products')?.scrollIntoView({ behavior: 'smooth' });
+  };
+
+  // ==================== HÀM THÊM VÀO GIỎ HÀNG TỪ PRODUCT CARD ====================
+  const handleAddToCartFromCard = async (e: React.MouseEvent, productId: string) => {
+    e.stopPropagation(); // Ngăn không cho click lan lên Card (navigate)
+
+    if (!user) {
+      toast.warning('Bạn cần đăng nhập để thêm sản phẩm vào giỏ hàng!', {
+        duration: 3000,
+      });
+      navigate('/login');
+      return;
+    }
+
+    try {
+      await cartAPI.addToCart(productId, 1, null, null);
+      toast.success('Đã thêm vào giỏ hàng thành công!');
+      window.dispatchEvent(new Event('cartUpdated'));
+    } catch (err: any) {
+      toast.error(err?.message || 'Không thể thêm vào giỏ hàng');
+    }
   };
 
   const categoryNameById = React.useMemo(() => {
@@ -152,30 +187,21 @@ const [voucherLoading, setVoucherLoading] =
   ];
  const handleSaveVoucher =
 async (voucherId: string) => {
+  if (!user) {
+    toast.error('Vui lòng đăng nhập để lưu mã giảm giá');
+    navigate('/login');
+    return;
+  }
 
   try {
-
     setVoucherLoading(true);
-
-    await voucherService.saveVoucher(
-      voucherId
-    );
-
-    const updated =
-      await voucherService.getMyVouchers();
-
+    await voucherService.saveVoucher(voucherId);
+    const updated = await voucherService.getMyVouchers();
     setMyVouchers(updated);
-
   } catch (error:any) {
-
-    alert(
-      error?.response?.data?.message
-    );
-
+    alert(error?.response?.data?.message);
   } finally {
-
     setVoucherLoading(false);
-
   }
 };
 const isSavedVoucher =
@@ -207,7 +233,7 @@ const isSavedVoucher =
             id: product.id,
             name: product.name,
             price: Number.isFinite(salePrice) ? salePrice : Number(product.price || 0),
-            image: product.images?.[0] || '/src/imports/image.png',
+            image: getDisplayImage(product),
             soldPercent: Math.max(0, Math.min(rawSoldPercent, 100)),
           };
         })
@@ -509,7 +535,7 @@ const visibleProducts = React.useMemo(() => {
                     onClick={() => navigate(`/product/${product.id}`)}
                   >
                     <div className="relative overflow-hidden bg-gray-50">
-                      <ImageWithFallback src={product.images?.[0] || '/src/imports/image.png'} alt={product.name} className="w-full h-64 object-cover transition-transform duration-500 ease-out group-hover:scale-110" />
+                      <ImageWithFallback src={getDisplayImage(product)} alt={product.name} className="w-full h-64 object-cover transition-transform duration-500 ease-out group-hover:scale-110" />
                       {product.store?.store_type === 'B2C' ? (
                         <Badge className="absolute top-3 left-3 z-10 bg-red-600 text-white font-bold rounded-sm px-2 py-0.5 text-xs hover:bg-red-700">
                           Mall
@@ -519,8 +545,11 @@ const visibleProducts = React.useMemo(() => {
                         <Heart className="size-4" />
                       </Button>
                       <div className="absolute bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-black/60 to-transparent opacity-0 group-hover:opacity-100 transition-opacity">
-                        <Button className="w-full bg-white text-black hover:bg-gray-100">
-                          <ShoppingCart className="size-4 mr-2" /> Xem chi tiết
+                        <Button
+                          className="w-full bg-white text-black hover:bg-gray-100"
+                          onClick={(e) => handleAddToCartFromCard(e, product.id)}
+                        >
+                          <ShoppingCart className="size-4 mr-2" /> Thêm vào giỏ hàng
                         </Button>
                       </div>
                     </div>

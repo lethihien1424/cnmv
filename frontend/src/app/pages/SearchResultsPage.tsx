@@ -7,6 +7,7 @@ import { ImageWithFallback } from '../components/figma/ImageWithFallback';
 import StoreHeader from '../components/StoreHeader';
 import StoreFooter from '../components/StoreFooter';
 import { getProducts, type Product } from '../services/productService';
+import { getDisplayImage } from '../services/api';
 import { Search, Store, Package, ChevronRight, Filter, Star } from 'lucide-react';
 
 export default function SearchResultsPage() {
@@ -145,7 +146,7 @@ export default function SearchResultsPage() {
                   <Card key={product.id} className="overflow-hidden border-slate-200 bg-white shadow-sm transition hover:-translate-y-1 hover:shadow-md cursor-pointer" onClick={() => navigate(`/product/${product.id}`)}>
                     <div className="relative">
                       <ImageWithFallback
-                        src={product.images?.[0] || 'https://placehold.co/400x400?text=No+Image'}
+                        src={getDisplayImage(product)}
                         alt={product.name}
                         className="h-52 w-full object-cover"
                       />
@@ -202,7 +203,7 @@ export default function SearchResultsPage() {
                     {featuredProduct && (
                       <div className="flex items-center gap-3 rounded-2xl bg-[#fafafa] p-3">
                         <ImageWithFallback
-                          src={featuredProduct.images?.[0] || 'https://placehold.co/120x120?text=No+Image'}
+                          src={getDisplayImage(featuredProduct)}
                           alt={featuredProduct.name}
                           className="size-16 rounded-lg object-cover"
                         />

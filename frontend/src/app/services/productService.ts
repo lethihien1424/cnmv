@@ -1,6 +1,5 @@
 // frontend/src/app/services/productService.ts
 import { apiRequest } from './api';
-import axios from 'axios';
 /* =========================================================
    PATHS
 ========================================================= */
@@ -175,24 +174,18 @@ export async function getProductDetail(id: string): Promise<Product> {
   return apiRequest(`${PRODUCTS_PATH}/${id}`, { method: 'GET' });
 }
 
-// Dòng 214-219: Đây là code FRONTEND bị dán nhầm vào Backend!
 export const createProduct = async (formData: FormData, token: string) => {
-  // Thay thế đường dẫn bằng URL tuyệt đối để loại trừ lỗi Proxy
-  const response = await axios.post(`/api/products`, formData, {
-    headers: {
-      'Authorization': `Bearer ${token}`, // Đảm bảo token không phải "Bearer undefined"
-    },
-  });
-  return response.data;
+  return apiRequest('/products', {
+    method: 'POST',
+    body: formData,
+  }, token);
 };
 
 export const updateProduct = async (id: string, formData: FormData, token: string) => {
-  const response = await axios.put(`/api/products/${id}`, formData, {
-    headers: {
-      'Authorization': `Bearer ${token}`,
-    },
-  });
-  return response.data;
+  return apiRequest(`/products/${id}`, {
+    method: 'PUT',
+    body: formData,
+  }, token);
 };
 
 export async function deleteProduct(id: string, token?: string | null) {

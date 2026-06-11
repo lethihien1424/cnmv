@@ -1,4 +1,4 @@
-import { API_BASE_URL } from './api';
+import { apiRequest } from './api';
 
 export type SellerReportPeriod = 'day' | 'month' | 'quarter' | 'year';
 
@@ -36,11 +36,6 @@ export async function getMySellerReport(
   token?: string | null,
 ): Promise<SellerReportData> {
   const authToken = token ?? localStorage.getItem('token');
-  const headers = new Headers();
-  if (authToken) {
-    headers.set('Authorization', `Bearer ${authToken}`);
-  }
-
   const reportPath = `my-report?period=${encodeURIComponent(period)}`;
   const candidatePaths = [
     `/stores/${reportPath}`,
@@ -51,26 +46,15 @@ export async function getMySellerReport(
   let lastMessage = 'Không thể tải báo cáo doanh thu';
 
   for (const path of candidatePaths) {
-    const response = await fetch(`${API_BASE_URL}${path}`, {
-      method: 'GET',
-      headers,
-    });
+    try {
+      return await apiRequest<SellerReportData>(path, { method: 'GET' }, authToken);
+    } catch (error: any) {
+      lastStatus = error?.response?.status || 0;
+      lastMessage = error?.message || `Request failed with status ${lastStatus}`;
 
-    const payload = await response.json().catch(() => null);
-
-    if (response.ok) {
-      if (payload && typeof payload === 'object' && 'data' in payload) {
-        return payload.data as SellerReportData;
+      if (lastStatus !== 404) {
+        break;
       }
-
-      return payload as SellerReportData;
-    }
-
-    lastStatus = response.status;
-    lastMessage = payload?.message || `Request failed with status ${response.status}`;
-
-    if (response.status !== 404) {
-      break;
     }
   }
 
